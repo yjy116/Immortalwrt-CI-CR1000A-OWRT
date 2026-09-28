@@ -29,15 +29,19 @@ class AlignmentTests(unittest.TestCase):
                 config = enabled(text(REPO, f"Config/CR1000A-WIFI-{mode}.txt"))
                 devices = {key for key in config if key.startswith("CONFIG_TARGET_DEVICE_")}
                 self.assertEqual({"CONFIG_TARGET_DEVICE_qualcommax_ipq807x_DEVICE_verizon_cr1000a"}, devices)
-                self.assertIn("CONFIG_PACKAGE_cr1000a-support", config)
+                self.assertIn("CONFIG_PACKAGE_kmod-dsa-rtl9303-spi", config)
+                self.assertIn("CONFIG_PACKAGE_cr1000a-recovery", config)
+                self.assertNotIn("CONFIG_PACKAGE_cr1000a-support", config)
 
     def test_all_reference_general_apps_are_included(self):
         expected = enabled(text(REFERENCE, "Config/GENERAL.txt"))
         expected = {key for key in expected if key.startswith("CONFIG_PACKAGE_")
                     and not key.startswith("CONFIG_PACKAGE_kmod-")}
-        expected.update({"CONFIG_PACKAGE_luci-app-sqm", "CONFIG_PACKAGE_sqm-scripts-nss"})
+        expected.discard("CONFIG_PACKAGE_sqm-scripts-nss")
+        expected.update({"CONFIG_PACKAGE_luci-app-sqm", "CONFIG_PACKAGE_sqm-scripts"})
         actual = enabled(text(REPO, "Config/GENERAL.txt") + text(REPO, "Config/EXTRA.txt"))
         self.assertEqual(set(), expected - actual)
+        self.assertNotIn("CONFIG_PACKAGE_sqm-scripts-nss", actual)
 
     def test_no_legacy_hardware_injection_or_wrong_board_helpers(self):
         scripts = "\n".join(path.read_text(encoding="utf-8")

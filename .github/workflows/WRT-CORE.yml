@@ -203,10 +203,12 @@ jobs:
           $GITHUB_WORKSPACE/Scripts/Settings.sh
 
           make defconfig -j$(nproc) && make clean -j$(nproc)
-          if ! grep -qx 'CONFIG_PACKAGE_cr1000a-support=y' .config; then
-            echo "::error::The selected source did not enable native CR1000A support."
-            exit 1
-          fi
+          for PACKAGE in kmod-dsa-rtl9303-spi cr1000a-recovery; do
+            if ! grep -qx "CONFIG_PACKAGE_${PACKAGE}=y" .config; then
+              echo "::error::The selected source did not enable required owrt package: $PACKAGE"
+              exit 1
+            fi
+          done
           echo "BPF/LLVM configuration after defconfig:"
           grep -E 'CONFIG_(BPF_TOOLCHAIN|USE_LLVM|HAS_BPF|NEED_BPF)' .config || true
           command -v clang

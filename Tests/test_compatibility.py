@@ -55,20 +55,26 @@ class LanCompatibilityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             package = root / "wrt/package"
-            (package / "qca-nss/qca-nss-dp/patches").mkdir(parents=True)
+            package.mkdir(parents=True)
             (root / "wrt/feeds/packages").mkdir(parents=True)
-            copy_file(SOURCE / DTS_FILE, root / "wrt" / DTS_FILE)
-            support = Path("package/emortal/cr1000a-support")
-            shutil.copytree(SOURCE / support, root / "wrt" / support)
+            hardware_files = (
+                DTS_FILE,
+                Path("target/linux/qualcommax/ipq807x/base-files/etc/board.d/02_network"),
+                Path("target/linux/qualcommax/base-files/lib/upgrade/api-verizon.sh"),
+                Path("target/linux/qualcommax/image/ipq807x.mk"),
+            )
+            for path in hardware_files:
+                copy_file(SOURCE / path, root / "wrt" / path)
+            for path in ("package/emortal/cr1000a-recovery", "package/kernel/rtl9303"):
+                shutil.copytree(SOURCE / path, root / "wrt" / path)
+            originals = {path.relative_to(root / "wrt"): path.read_bytes()
+                         for path in (root / "wrt").rglob("*") if path.is_file()}
             run_bash(f'bash "{REPO.as_posix()}/Scripts/Handles.sh"', root / "wrt",
                      {"GITHUB_WORKSPACE": root.as_posix()})
-            self.assertEqual((SOURCE / DTS_FILE).read_bytes(),
-                             (root / "wrt" / DTS_FILE).read_bytes())
-            for original in (SOURCE / support).rglob("*"):
-                if original.is_file():
-                    actual = root / "wrt" / support / original.relative_to(SOURCE / support)
-                    self.assertEqual(original.read_bytes(), actual.read_bytes())
-            self.assertEqual([], list((package / "qca-nss/qca-nss-dp/patches").iterdir()))
+            for path, content in originals.items():
+                self.assertEqual(content, (root / "wrt" / path).read_bytes(), str(path))
+            self.assertFalse((package / "qca-nss").exists())
+            self.assertFalse((package / "emortal/cr1000a-support").exists())
 
 
 def board_elements(data, offset):
@@ -110,7 +116,7 @@ class CacheCompatibilityTests(unittest.TestCase):
     def prefix(self, **changes):
         variables = {
             "GITHUB_WORKSPACE": self.workspace.as_posix(), "WRT_CONFIG": "CR1000A-WIFI-YES",
-            "WRT_SOURCE": "yjy116/immortalwrt", "WRT_BRANCH": "main",
+            "WRT_SOURCE": "yjy116/immortalwrt", "WRT_BRANCH": "owrt",
             "WRT_TARGET": "qualcommax", "WRT_SUBTARGET": "ipq807x",
             "WRT_HOST_ID": "ubuntu-24.04", "RUNNER_ARCH": "X64", "WRT_PACKAGE": "",
         }
@@ -126,7 +132,7 @@ class CacheCompatibilityTests(unittest.TestCase):
     def test_source_and_branch_do_not_share_cache(self):
         baseline = self.prefix()
         self.assertNotEqual(baseline, self.prefix(WRT_SOURCE="VIKINGYFY/immortalwrt"))
-        self.assertNotEqual(baseline, self.prefix(WRT_BRANCH="owrt"))
+        self.assertNotEqual(baseline, self.prefix(WRT_BRANCH="main"))
 
     def test_host_and_manual_config_changes_invalidate_cache(self):
         baseline = self.prefix()

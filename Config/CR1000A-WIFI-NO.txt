@@ -2,8 +2,9 @@
 CONFIG_TARGET_qualcommax=y
 CONFIG_TARGET_qualcommax_ipq807x=y
 CONFIG_TARGET_DEVICE_qualcommax_ipq807x_DEVICE_verizon_cr1000a=y
-# Required native package is not yet selected by the upstream device profile.
-CONFIG_PACKAGE_cr1000a-support=y
+# Native owrt device packages; do not restore the legacy vendor init helpers.
+CONFIG_PACKAGE_kmod-dsa-rtl9303-spi=y
+CONFIG_PACKAGE_cr1000a-recovery=y
 
 # Wireless exclusions from the upstream IPQ807X-WIFI-NO profile.
 CONFIG_PACKAGE_kmod-ath=n

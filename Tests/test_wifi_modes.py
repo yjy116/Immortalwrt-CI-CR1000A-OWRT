@@ -32,6 +32,8 @@ class WifiProfileTests(unittest.TestCase):
                 job = workflow["jobs"]["config"]
                 strategy = job["strategy"]
                 self.assertEqual(PROFILES, strategy["matrix"]["CONFIG"])
+                self.assertEqual(["yjy116/immortalwrt"], strategy["matrix"]["SOURCE"])
+                self.assertEqual(["owrt"], strategy["matrix"]["BRANCH"])
                 self.assertFalse(strategy["fail-fast"])
                 self.assertGreaterEqual(strategy.get("max-parallel", len(PROFILES)), len(PROFILES))
                 self.assertNotIn("needs", job)

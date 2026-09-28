@@ -22,7 +22,7 @@ jobs:
         id: check
         env:
           SOURCE: yjy116/immortalwrt
-          BRANCH: main
+          BRANCH: owrt
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
