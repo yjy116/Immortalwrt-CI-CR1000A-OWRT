@@ -51,6 +51,8 @@ DAE/DAED 使用参考项目的 `kenzok8/openwrt-daede@0b0e5d6`，包括后端切
 
 不引入 AX6600 的 Athena LED、内存/设备配置及其他硬件补丁；不恢复 netspeedtest 源，也不启用 MosDNS、speedtestcpp 或旧 luci-app-speedtest。测速采用模板的命令行 iperf3，不保留旧的独立 luci-app-iperf3。
 
+2026-10-17 核查发现模板中的 `lmq8267/luci-app-vnt` 返回 404，匿名 Git 无法访问。本项目未启用 VNT，因此不再下载该源，避免无关插件阻断构建；其他包源下载失败仍会明确报错，不会静默跳过。
+
 新增插件会增加固件大小和编译耗时。最终镜像大小、设备分区容量和实际可用空间仍需在构建及刷机前核对，不能用 eMMC 总容量代替固件分区容量。
 
 ## 构建和缓存
