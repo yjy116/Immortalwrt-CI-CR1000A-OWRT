@@ -22,6 +22,9 @@ on:
       WRT_WORD:
         required: true
         type: string
+      WRT_COUNTRY:
+        required: true
+        type: string
       WRT_IP:
         required: true
         type: string
@@ -52,6 +55,7 @@ env:
   WRT_NAME: ${{inputs.WRT_NAME}}
   WRT_SSID: ${{inputs.WRT_SSID}}
   WRT_WORD: ${{inputs.WRT_WORD}}
+  WRT_COUNTRY: ${{inputs.WRT_COUNTRY}}
   WRT_IP: ${{inputs.WRT_IP}}
   WRT_PW: ${{inputs.WRT_PW}}
   WRT_REPO: ${{inputs.WRT_REPO}}
@@ -273,6 +277,7 @@ jobs:
 
           cp -f ./.config ./upload/Config-"$WRT_CONFIG"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
           cp package/openwrt-daede/ci/DAEDE-SOURCE.txt ./upload/
+          cp package/openwrt-honk/ci/HONK-SOURCE.txt ./upload/
 
           if [[ $WRT_TEST != 'true' ]]; then
             echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV

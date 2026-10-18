@@ -11,6 +11,7 @@ git -C "$SOURCE_DIR" fetch --depth=1 "$DAEDE_REPO" "$DAEDE_COMMIT"
 git -C "$SOURCE_DIR" -c core.autocrlf=false checkout --detach FETCH_HEAD
 test "$(git -C "$SOURCE_DIR" rev-parse HEAD)" = "$DAEDE_COMMIT"
 patch --batch --fuzz=0 -p1 -d "$SOURCE_DIR" < "$WORKSPACE/Patches/daede/010-unified-backends.patch"
+patch --batch --fuzz=0 -p1 -d "$SOURCE_DIR" < "$WORKSPACE/Patches/daede/020-honk-coexistence.patch"
 install -m 0755 "$WORKSPACE/files/etc/uci-defaults/89-daede-migrate" \
   "$SOURCE_DIR/luci-app-daede/root/etc/uci-defaults/89-daede-migrate"
 

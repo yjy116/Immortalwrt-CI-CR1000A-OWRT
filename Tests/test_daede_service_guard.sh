@@ -17,6 +17,7 @@ check_start() (
   procd_set_param() { :; }
   procd_append_param() { :; }
   procd_close_instance() { :; }
+  source "$SOURCE_DIR/daed/files/daed-cleanup.sh"
   source <(sed '\|^\. /usr/share/daed/cleanup.sh$|d' "$SOURCE_DIR/$name/files/$name.init")
   PROG=true
   if start_service; then

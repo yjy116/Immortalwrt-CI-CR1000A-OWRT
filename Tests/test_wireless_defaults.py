@@ -22,21 +22,24 @@ class WirelessSettingsTests(unittest.TestCase):
         copy_file(SOURCE / WIRELESS_FILE, self.root / WIRELESS_FILE)
         self.original = (self.root / WIRELESS_FILE).read_text(encoding="utf-8")
 
-    def apply_settings(self):
+    def apply_settings(self, **variables):
         settings = (REPO / "Scripts/Settings.sh").read_text(encoding="utf-8")
         start = settings.index("WIFI_UC=")
         wireless_step = settings[start:settings.index("CFG_FILE=")]
         run_bash(wireless_step, self.root, {
-            "WRT_SSID": "CR1000A-test", "WRT_WORD": "test-password",
+            "WRT_SSID": "CR1000A-test", "WRT_WORD": "test-password", "WRT_COUNTRY": "US",
             "GITHUB_WORKSPACE": REPO.as_posix(),
+            **variables,
         })
         return (self.root / WIRELESS_FILE).read_text(encoding="utf-8")
 
-    def test_only_6ghz_security_and_requested_credentials_change(self):
+    def test_only_requested_wireless_defaults_change(self):
         self.assertIn(OLD_SECURITY, self.original)
         expected = self.original.replace(OLD_SECURITY, NEW_SECURITY)
-        expected = re.sub(r"ssid='.*'", "ssid='CR1000A-test'", expected)
+        expected = re.sub(r"ssid='.*'",
+                          "ssid='${band_name == '6g' ? 'CR1000A-test-6G' : 'CR1000A-test'}'", expected)
         expected = re.sub(r"key='.*'", "key='test-password'", expected)
+        expected = re.sub(r"country='.*'", "country='US'", expected)
         self.assertEqual(expected, self.apply_settings())
 
     def test_legacy_wireless_file_does_not_bypass_ucode_settings(self):
@@ -46,17 +49,22 @@ class WirelessSettingsTests(unittest.TestCase):
         original = legacy.read_bytes()
         actual = self.apply_settings()
         self.assertIn(NEW_SECURITY, actual)
-        self.assertIn("ssid='CR1000A-test'", actual)
+        self.assertIn("'CR1000A-test-6G' : 'CR1000A-test'", actual)
         self.assertEqual(original, legacy.read_bytes())
 
-    def test_changed_upstream_security_requires_review(self):
+    def test_missing_upstream_security_field_fails(self):
         path = self.root / WIRELESS_FILE
-        changed = self.original.replace(OLD_SECURITY, "${defaults?.encryption || 'sae'}")
+        changed = re.sub(r"^set \$\{si\}\.encryption=.*\n", "", self.original, flags=re.MULTILINE)
         self.assertNotEqual(self.original, changed)
         path.write_text(changed, encoding="utf-8")
         with self.assertRaises(subprocess.CalledProcessError):
             self.apply_settings()
         self.assertEqual(changed, path.read_text(encoding="utf-8"))
+
+    def test_invalid_country_is_rejected_without_modifying_source(self):
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.apply_settings(WRT_COUNTRY="US'; invalid")
+        self.assertEqual(self.original, (self.root / WIRELESS_FILE).read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

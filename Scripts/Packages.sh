@@ -100,6 +100,10 @@ rm -rf ./feeds/luci/applications/luci-app-dae* ./feeds/packages/net/dae*
 cp -r "$GITHUB_WORKSPACE/package/v2ray-geodata-updater" ./package/
 bash "$GITHUB_WORKSPACE/Scripts/Daede.sh" "$PWD/package/openwrt-daede"
 
+# Honk includes the matching Doona UI; keep a single package provider.
+rm -rf ./feeds/luci/applications/luci-app-honk ./feeds/packages/net/honk
+bash "$GITHUB_WORKSPACE/Scripts/Honk.sh" "$PWD/package/openwrt-honk"
+
 #更新软件包版本
 UPDATE_VERSION() {
 	local PKG_NAME=$1

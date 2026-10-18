@@ -8,6 +8,9 @@ CONFIG_DAE_USE_KERNEL_BTF=y
 CONFIG_DAED_USE_KERNEL_BTF=y
 # CONFIG_DAE_USE_VMLINUX_BTF is not set
 # CONFIG_DAED_USE_VMLINUX_BTF is not set
+# Honk + bundled Doona, installed but disabled until explicitly initialized.
+CONFIG_PACKAGE_honk=y
+CONFIG_PACKAGE_luci-app-honk=y
 CONFIG_PACKAGE_luci-app-nikki=y
 CONFIG_PACKAGE_luci-app-passwall=y
 # CONFIG_PACKAGE_luci-app-passwall_Iptables_Transparent_Proxy is not set
@@ -85,6 +88,10 @@ CONFIG_KERNEL_DEBUG_INFO=y
 CONFIG_KERNEL_DEBUG_INFO_BTF=y
 CONFIG_KERNEL_DEBUG_INFO_BTF_MODULES=y
 CONFIG_KERNEL_KPROBES=y
+# Honk TCP fentry/fexit hooks require function and dynamic tracing support.
+CONFIG_KERNEL_FTRACE=y
+CONFIG_KERNEL_FUNCTION_TRACER=y
+CONFIG_KERNEL_DYNAMIC_FTRACE=y
 CONFIG_KERNEL_KPROBE_EVENTS=y
 CONFIG_KERNEL_BPF_EVENTS=y
 CONFIG_KERNEL_CGROUPS=y

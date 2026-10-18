@@ -1,0 +1,158 @@
+diff --git a/dae/files/dae.init b/dae/files/dae.init
+--- a/dae/files/dae.init
++++ b/dae/files/dae.init
+@@ -10,13 +10,32 @@
+ PROG="/usr/bin/dae"
+ LOG_DIR="/var/log/dae"
+ 
++dae_datapath_idle() {
++	local process status reason
++	for process in honk-core daed; do
++		status=0
++		pidof "$process" >/dev/null || status=$?
++		case "$status" in
++			1) continue ;;
++			0) reason="$process is running" ;;
++			*) reason="cannot probe $process (pidof exit $status)" ;;
++		esac
++		echo "dae: refusing start/cleanup: $reason; shared datapath left untouched" >&2
++		logger -t dae-init "refusing start/cleanup: $reason; shared datapath left untouched"
++		return 1
++	done
++	return 0
++}
++
+ start_service() {
++	DAE_START_STATUS=1
+ 	config_load "$CONF"
+ 
+ 	local enabled
+ 	config_get_bool enabled "config" "enabled" "0"
+ 	[ "$enabled" -eq "1" ] || return 1
+ 
++	dae_datapath_idle || return 1
+ 	# Both backends share eBPF attachments; selection also applies at boot/CLI.
+ 	local active_backend
+ 	active_backend="$(uci -q get daede.config.active_backend)"
+@@ -50,9 +69,17 @@ start_service() {
+ 	procd_set_param stderr 1
+ 
+-	procd_close_instance
++	procd_close_instance || return 1
++	DAE_START_STATUS=0
+ }
+ 
++# rc.common does not propagate start_service's return status.
++service_started() {
++	return "$DAE_START_STATUS"
++}
++
+ stop_service() {
++	DAE_STOP_STATUS=0
++	dae_datapath_idle || { DAE_STOP_STATUS=1; return 1; }
+ 	rm -rf "$LOG_DIR"
+ 	# kill lingering procs in daens: TERM first, then KILL for stubborn ones
+ 	for pid in $(ip netns pids daens 2>/dev/null); do kill "$pid" 2>/dev/null; done
+@@ -70,6 +97,11 @@ stop_service() {
+ }
+ 
++# rc.common does not propagate stop_service's return status.
++service_stopped() {
++	return "$DAE_STOP_STATUS"
++}
++
+ service_triggers() {
+ 	procd_add_reload_trigger "$CONF"
+ }
+ 
+diff --git a/daed/files/daed-cleanup.sh b/daed/files/daed-cleanup.sh
+--- a/daed/files/daed-cleanup.sh
++++ b/daed/files/daed-cleanup.sh
+@@ -14,6 +14,23 @@
+ #
+ # The function stays sourceable by both init.d/daed and daed-guard.
+ 
++daed_datapath_idle() {
++	local process status reason
++	for process in honk-core dae; do
++		status=0
++		pidof "$process" >/dev/null || status=$?
++		case "$status" in
++			1) continue ;;
++			0) reason="$process is running" ;;
++			*) reason="cannot probe $process (pidof exit $status)" ;;
++		esac
++		echo "daed: refusing start/cleanup: $reason; shared datapath left untouched" >&2
++		logger -t daed-init "refusing start/cleanup: $reason; shared datapath left untouched"
++		return 1
++	done
++	return 0
++}
++
+ daed_process_probe() {
+ 	if command -v pgrep >/dev/null 2>&1; then
+ 		pgrep -f '^/usr/bin/daed([[:space:]]|$)' >/dev/null 2>&1
+@@ -36,6 +53,7 @@ daed_process_probe() {
+ 
+ daed_cleanup_runtime() {
+ 	local pid rc=0 probe_rc
++	daed_datapath_idle || return 1
+ 
+ 	# If daed userspace is currently running, do not touch the
+ 	# netns, the veth, or the eBPF dataplane. They are in active
+diff --git a/daed/files/daed.init b/daed/files/daed.init
+--- a/daed/files/daed.init
++++ b/daed/files/daed.init
+@@ -17,5 +17,12 @@ log() {
+ }
+ 
++daed_start_complete() {
++	procd_close_instance || return 1
++	log "start: procd_open_instance done" || return 1
++	DAED_START_STATUS=0
++}
++
+ start_service() {
++	DAED_START_STATUS=1
+ 	log "start: begin"
+ 	config_load "$CONF"
+@@ -27,6 +34,7 @@ start_service() {
+ 		return 1
+ 	fi
+ 
++	daed_datapath_idle || return 1
+ 	# Both backends share eBPF attachments; selection also applies at boot/CLI.
+ 	local active_backend
+ 	active_backend="$(uci -q get daede.config.active_backend)"
+@@ -70,12 +78,18 @@ start_service() {
+ 	procd_set_param stderr 1
+ 
+-	procd_close_instance
+-	log "start: procd_open_instance done"
++	daed_start_complete
+ }
+ 
++# rc.common does not propagate start_service's return status.
++service_started() {
++	return "$DAED_START_STATUS"
++}
++
+ stop_service() {
++	DAED_STOP_STATUS=0
++	daed_datapath_idle || { DAED_STOP_STATUS=1; return 1; }
+ 	log "stop: begin"
+ 	# Cleanup runs in daed-guard after its child exits. Record only a
+ 	# pre-stop snapshot here; pin entries do not prove TC attachment.
+ 	local pinned="" ns_left=""
+ 	if [ -d /sys/fs/bpf/daed ]; then
+@@ -88,5 +102,10 @@ stop_service() {
+ }
+ 
++# rc.common does not propagate stop_service's return status.
++service_stopped() {
++	return "$DAED_STOP_STATUS"
++}
++
+ service_triggers() {
+ 	procd_add_reload_trigger "$CONF"
+ }

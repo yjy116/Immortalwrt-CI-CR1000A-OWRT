@@ -8,7 +8,7 @@ This public CI builds both CR1000A WiFi variants from the controlled `yjy116/imm
 
 ## 配置来源
 
-本轮核对基线：
+初始对齐基线（实际源码提交以每次 Release 为准）：
 
 | 用途 | 仓库与提交 |
 | --- | --- |
@@ -40,15 +40,27 @@ WiFi-YES 使用上游 ath11k 驱动、QCN9074 固件及 CR1000A 板级数据，*
 
 2026-10-18 核对了 [CI 模板 5a77a38](https://github.com/VIKINGYFY/OpenWRT-CI/tree/5a77a388c8fe91c894f3e97618e9f997b57c4fba) 和 `26.10.17-10.45.55` 的实际 WiFi-YES 镜像：QCN9074 固件及 CR1000A `board-2.bin` 均已打包，配置中的 `=m` 属于按设备 rootfs 的正常包选择，不能据此判定漏包。
 
-`Settings.sh` 跟随新模板直接修改 `mac80211.uc`，不再走旧 `set-wireless.sh` 分支。另有一处本地修复：当前上游源码检测到 `6g` 时仍生成 `psk2+ccmp`；`Patches/wifi-scripts/010-6ghz-sae-default.patch` 将这一频段改成 **WPA3-SAE**，保留配置的密码。2.4/5GHz 加密默认值不变，PMF 和 H2E 由上游 hostapd 的 SAE 配置处理。上游源码变化导致补丁不匹配时构建会明确失败，需要重新核对，不能静默跳过。
+`Settings.sh` 跟随新模板直接定制 `mac80211.uc` 的默认值，不再走旧 `set-wireless.sh` 分支，**不额外使用无线补丁文件**。上游 UCI 默认写 `psk2+ccmp`，但当前 ucode 后端会在 6GHz 自动映射为 SAE，因此不能把旧 UCI 字样当成实机使用 WPA2 或无线故障的证据。本项目显式填写 6GHz 的 SAE 默认值，使配置意图更清晰；上游必需字段消失时明确报错，不静默跳过。
 
-这只是无线配置生成修复，**不是第三射频实机验证通过的声明**。不替换驱动或板级数据，不强制 radio2 为 6GHz，不改国家码、频率或发射功率。是否能启用 6GHz，还取决于实际 PHY 能力、固件、所在地法规和终端支持。
+设备主人确认实际使用地区为 **US**，并计划不保留配置升级，首次启动默认值如下：
+
+| 项目 | 默认行为 |
+| --- | --- |
+| 国家/地区 | 所有射频设为 `US`；由两个入口 workflow 的 `WRT_COUNTRY` 传入 |
+| 6GHz SSID | `CR1000A-6G`，沿用 workflow 配置的 WiFi 密码 |
+| 6GHz 安全 | WPA3-SAE；PMF-required 和 SAE H2E 由原生 hostapd 处理 |
+| 频段 | 上游自动检测 PHY 能力，支持 6GHz 时优先选择，不硬编码 radio2 |
+| 信道和带宽 | 上游默认信道，未给出时为 auto；上游带宽上限 80MHz，不强制 160MHz |
+| 功率模式 | 原生 hostapd 的 6GHz LPI 默认值，面向室内使用；不提高发射功率 |
+| 2.4/5GHz | SSID 与加密沿用原默认，国家码同样使用实际所在地 US |
+
+这只是无线配置生成修复，**不是第三射频实机验证通过的声明**。驱动、设备树、板级数据和 PHY 检测继续跟随 owrt。若固件/PHY 未上报 6GHz 能力，不能靠改名称或强制频段解决。设备改到其他地区使用前，应同步修改正式及测试 workflow 的 `WRT_COUNTRY`，并核实当地允许的信道。
 
 - 新生成的无线配置才使用此默认值；保留配置升级不会覆盖已有 `/etc/config/wireless`。
 - 若现有 6GHz 接口仍使用 WPA2，在 LuCI 中将该接口改为 WPA3-SAE，并按实际所在地设置国家/地区。不要靠改成其他国家绕过信道限制。
 - 若仍无 6GHz，提供 `iw phy`、`iw reg get`、`ubus call network.wireless status` 和最新内核/系统日志，区分未识别射频、无可用信道与 hostapd 启动失败；分享前遮掉密码和其他敏感信息。
 
-The 6GHz change fixes generated security defaults only. It does not rewrite retained settings, override regulatory restrictions, or prove hardware operation.
+The owner confirmed US operation. Fresh wireless settings use US, a separate 6GHz SSID and WPA3-SAE; native owrt detection, drivers and channel/power rules are retained. Existing settings are not overwritten and hardware operation remains unverified.
 
 ## 插件补充
 
@@ -62,6 +74,19 @@ The 6GHz change fixes generated security defaults only. It does not rewrite reta
 HomeProxy/sing-box 按模板从 `VIKINGYFY/packages` 配套获取，不再保留旧的“官方 feed 专供”处理，不单独强升 sing-box。
 
 DAE/DAED 使用参考项目的 `kenzok8/openwrt-daede@0b0e5d6`，包括后端切换互斥、旧订阅任务迁移和错误上报修复。使用内核 BTF，不额外携带大型 `vmlinux-btf`；准确源码信息随 Release 的 `DAEDE-SOURCE.txt` 发布。迁移保留旧数据库/配置和订阅计划；自动更新凭据需在新界面中核对。
+
+### Honk + Doona（实验性）
+
+新增 [kenzok8/openwrt-honk](https://github.com/kenzok8/openwrt-honk/tree/b733aadc69b0d3c618104241972f483adda97aed) 的 `honk` 和 `luci-app-honk`，Doona 页面及中文翻译随 LuCI 包安装，没有单独的 `doona` 配置项。正式与测试工作流的两种 WiFi 模式均包含它们。
+
+- 固定打包提交 `b733aad`、Honk native-api 核心 `Glassyiris/honk@0e61ed3`（alpha）和 `Zakkaus/doona@34657ab5`（beta.20）。它不是直接替换为 `daeuniverse/honk/main`；Doona 需要配套 native API。
+- `Scripts/Honk.sh` 获取固定 `source-39098804282` 发布的元数据并校验 SHA256；构建系统再校验核心和 UI 归档。缺文件或哈希不匹配直接失败，不使用浮动 staging/跳过校验。
+- 使用已编译的静态 AArch64 核心及 Doona 静态资源，由本仓库的 owrt 构建系统重新打包，不直接安装其他 SDK 的 IPK，也不增加整套 Rust/Zig/Node 编译链。
+- 复用内核 BTF 和已有 GeoData，补齐 Function/Dynamic Ftrace 支持，不携带 `vmlinux-btf`。已核对核心裸文件约 25.83 MiB、Doona 解包约 3.28 MiB；这不是最终固件的净增大小，最终压缩体积和分区校验以本次构建为准。
+- **默认关闭、不自启、未初始化**。刷机后在 LuCI 的 Honk 页面显式初始化、设置登录凭据后再启用；Doona 由 Honk 提供，初始化后监听 LAN 地址的 9527 端口，不另起服务。
+- 保留 DAE/DAED。Honk 与它们共用 `dae0` / `daens` 等资源，不能同时接管流量；切换前先正常停止当前透明代理，不要强杀。启停保护会明确报告冲突，不能以改端口代替互斥。
+
+版本和组件来源随 Release 的 `HONK-SOURCE.txt` 发布。后续更新需同时核对 `Scripts/Honk.sh` 中的提交、资产标签、三份元数据哈希及配套服务兼容补丁，不能只改核心版本号。当前仅完成源码、资产和构建配置接入检查，BPF verifier/fentry、PPE 交互及真实 TCP/UDP/DNS 流量仍需刷机后验证。
 
 不引入 AX6600 的 Athena LED、内存/设备配置及其他硬件补丁；不恢复 netspeedtest 源，也不启用 MosDNS、speedtestcpp 或旧 luci-app-speedtest。测速采用模板的命令行 iperf3，不保留旧的独立 luci-app-iperf3。
 
@@ -106,15 +131,18 @@ gh repo sync yjy116/immortalwrt --source VIKINGYFY/immortalwrt --branch owrt
 export WRT_SOURCE_CHECK=/path/to/immortalwrt-owrt
 export WRT_CI_TEMPLATE=/path/to/VIKINGYFY-OpenWRT-CI
 export WRT_PLUGIN_REFERENCE=/path/to/AX6600-CI
+export GITHUB_WORKSPACE="$PWD"
+bash Scripts/Honk.sh /tmp/cr1000a-honk-check
+export WRT_HONK_CHECK=/tmp/cr1000a-honk-check
 python3 -m pip install -r Tests/requirements.txt
 python3 -m unittest discover -s Tests -v
-export GITHUB_WORKSPACE="$PWD"
 bash Scripts/Daede.sh /tmp/cr1000a-daede-check
 bash Tests/test_daede_migration.sh
 bash Tests/test_daede_service_guard.sh /tmp/cr1000a-daede-check
+bash Tests/test_honk_coexistence.sh /tmp/cr1000a-daede-check /tmp/cr1000a-honk-check
 node Tests/test_daede_switch.cjs /tmp/cr1000a-daede-check
 bash Tests/test_mihomo_conflicts.sh
 bash Tests/test_geodata_updater.sh
 ```
 
-检查覆盖双模式并行矩阵及 owrt 分支、WiFi-NO 上游禁用项和 Q6 调整、缓存隔离、模板/插件差集、DSA 与恢复包缺失时明确失败、原生 LAN/WAN/升级文件不被改写、第三射频板级数据、无线表达式，以及 DAE/DAED 迁移和切换。服务测试只替代路由器专有 I/O，不代表实机运行；完整固件仍由 GitHub Actions 验证。
+检查覆盖双模式并行矩阵及 owrt 分支、WiFi-NO 上游禁用项和 Q6 调整、缓存隔离、模板/插件差集、DSA 与恢复包缺失时明确失败、原生 LAN/WAN/升级文件不被改写、第三射频板级数据、无线默认值转换、Honk/Doona 发布输入，以及 DAE/DAED 迁移和切换。服务测试只替代路由器专有 I/O，不代表实机运行；完整固件仍由 GitHub Actions 验证。
