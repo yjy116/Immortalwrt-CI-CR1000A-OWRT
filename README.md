@@ -36,6 +36,20 @@ WiFi-YES 使用上游 ath11k 驱动、QCN9074 固件及 CR1000A 板级数据，*
 
 **从 main/NSS 固件迁移：** 先备份设置并准备恢复手段，建议不保留旧网络配置刷入，再按新接口重新配置 LAN/VLAN。不要直接恢复旧 `/etc/config/network`、NSS SQM 或硬件 overlay。若手工迁移 `/etc/rc.local`，移除旧 `/lib/rtl/init.sh`、`/lib/aqr/init.sh`、`/lib/mmc/init.sh` 及 `exec-dir`/switch 调用，保留其他自定义命令。这里不自动删除路由器上的用户配置，也未验证从每一种历史固件跨架构升级的安全性。
 
+### 6GHz 无线默认配置
+
+2026-10-18 核对了 [CI 模板 5a77a38](https://github.com/VIKINGYFY/OpenWRT-CI/tree/5a77a388c8fe91c894f3e97618e9f997b57c4fba) 和 `26.10.17-10.45.55` 的实际 WiFi-YES 镜像：QCN9074 固件及 CR1000A `board-2.bin` 均已打包，配置中的 `=m` 属于按设备 rootfs 的正常包选择，不能据此判定漏包。
+
+`Settings.sh` 跟随新模板直接修改 `mac80211.uc`，不再走旧 `set-wireless.sh` 分支。另有一处本地修复：当前上游源码检测到 `6g` 时仍生成 `psk2+ccmp`；`Patches/wifi-scripts/010-6ghz-sae-default.patch` 将这一频段改成 **WPA3-SAE**，保留配置的密码。2.4/5GHz 加密默认值不变，PMF 和 H2E 由上游 hostapd 的 SAE 配置处理。上游源码变化导致补丁不匹配时构建会明确失败，需要重新核对，不能静默跳过。
+
+这只是无线配置生成修复，**不是第三射频实机验证通过的声明**。不替换驱动或板级数据，不强制 radio2 为 6GHz，不改国家码、频率或发射功率。是否能启用 6GHz，还取决于实际 PHY 能力、固件、所在地法规和终端支持。
+
+- 新生成的无线配置才使用此默认值；保留配置升级不会覆盖已有 `/etc/config/wireless`。
+- 若现有 6GHz 接口仍使用 WPA2，在 LuCI 中将该接口改为 WPA3-SAE，并按实际所在地设置国家/地区。不要靠改成其他国家绕过信道限制。
+- 若仍无 6GHz，提供 `iw phy`、`iw reg get`、`ubus call network.wireless status` 和最新内核/系统日志，区分未识别射频、无可用信道与 hostapd 启动失败；分享前遮掉密码和其他敏感信息。
+
+The 6GHz change fixes generated security defaults only. It does not rewrite retained settings, override regulatory restrictions, or prove hardware operation.
+
 ## 插件补充
 
 在模板的 HomeProxy、GecoosAC、Mini DiskManager、NATMapT、Samba、UPnP、WOLUltra 等基础上，增加：

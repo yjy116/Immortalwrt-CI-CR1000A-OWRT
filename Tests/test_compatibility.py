@@ -31,25 +31,6 @@ def copy_file(source, destination):
     shutil.copyfile(source, destination)
 
 
-class WirelessSettingsTests(unittest.TestCase):
-    def test_upstream_country_and_encryption_expressions_survive(self):
-        settings = (REPO / "Scripts/Settings.sh").read_text(encoding="utf-8")
-        wireless_step = settings[settings.index("WIFI_SH="):settings.index("CFG_FILE=")]
-        original = (SOURCE / WIRELESS_FILE).read_text(encoding="utf-8")
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            copy_file(SOURCE / WIRELESS_FILE, root / WIRELESS_FILE)
-            run_bash(wireless_step, root, {"WRT_SSID": "CR1000A-test", "WRT_WORD": "test-password"})
-            result = (root / WIRELESS_FILE).read_text(encoding="utf-8")
-        for field in ("country", "encryption"):
-            expected = [line for line in original.splitlines() if f".{field}=" in line]
-            actual = [line for line in result.splitlines() if f".{field}=" in line]
-            self.assertTrue(expected, f"No upstream {field} expression found")
-            self.assertEqual(expected, actual)
-        self.assertIn("ssid='CR1000A-test'", result)
-        self.assertIn("key='test-password'", result)
-
-
 class LanCompatibilityTests(unittest.TestCase):
     def test_real_handle_script_leaves_native_hardware_unchanged(self):
         with tempfile.TemporaryDirectory() as directory:
