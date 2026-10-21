@@ -96,6 +96,16 @@ DAE/DAED 使用参考项目的 `kenzok8/openwrt-daede@0b0e5d6`，包括后端切
 
 ## 构建和缓存
 
+### MiniUPnP 重连修复
+
+MiniUPnP 官方 `2.3.11` 在 WAN 短暂断线后重新获得私有/CGNAT 地址时，可能一直拒绝端口映射，直到重启服务。项目直接使用官方修复提交 [2dcf639](https://github.com/miniupnp/miniupnp/commit/2dcf63959950dbb2c3f97b7bd63773d499749134) 的源码，打包为 `2.3.11-r2`；不新增本地 C 源码补丁，也不更换 LuCI、启动脚本、防火墙集成或默认权限。feed 自带的兼容性修补保留不动。
+
+版本、提交和归档 SHA256 集中在 `Config/miniupnpd-source.mk`，两种 WiFi 固件共用；Release 同时提供 `MINIUPNPD-SOURCE.txt` 供核对。后续只需更新该文件的官方提交、版本/修订和归档校验值；若 feed 正式版本已包含修复，也可删除本源码覆盖步骤、配置文件及发布副本，恢复完全跟随 feed。不能只修改版本号而保留旧哈希。
+
+此修复恢复的是本机端口映射，不会替运营商配置 CGNAT，也不保证公网入站可达。未安装新固件的设备仍是旧核心，单独重启 `miniupnpd` 只能暂时恢复。无需清理工具链缓存；不会在运行中的路由器上自动重启代理或网络服务。
+
+### 触发编译
+
 手动运行 Actions 中的 `CR1000A` 或 `CR1000A-test`，**一次触发同时启动 WiFi-YES 和 WiFi-NO 两个并行任务**，不需要分别选择或触发。两种模式共用 GENERAL/EXTRA 插件清单，分别生成独立 Release，标签以 `CR1000A-WIFI-YES-` / `CR1000A-WIFI-NO-` 开头，固件文件名包含 `wifi-yes` / `wifi-no`。某个任务失败不会自动取消另一个任务。
 
 将 `TEST` 设为 true 时仍会启动两个任务，但只生成两种配置，不编译固件。构建主机继续跟随模板使用 `ubuntu-latest`。原有 Auto-Build 调度及新提交检测逻辑不变，只把检测分支改为你 fork 的 `owrt`。WiFi-NO 请通过有线网络管理；不要通过手动 PACKAGE 或 PRIVATE 配置重新启用无线驱动，否则会与无无线内存布局冲突。
@@ -134,6 +144,9 @@ export WRT_PLUGIN_REFERENCE=/path/to/AX6600-CI
 export GITHUB_WORKSPACE="$PWD"
 bash Scripts/Honk.sh /tmp/cr1000a-honk-check
 export WRT_HONK_CHECK=/tmp/cr1000a-honk-check
+export MINIUPNPD_PACKAGE_CHECK=/path/to/immortalwrt-packages/net/miniupnpd
+# Download the official commit archive referenced by Config/miniupnpd-source.mk.
+export MINIUPNPD_ARCHIVE_CHECK=/path/to/miniupnpd-2dcf639.tar.gz
 python3 -m pip install -r Tests/requirements.txt
 python3 -m unittest discover -s Tests -v
 bash Scripts/Daede.sh /tmp/cr1000a-daede-check
