@@ -279,7 +279,7 @@ jobs:
           cp -f ./.config ./upload/Config-"$WRT_CONFIG"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
           cp package/openwrt-daede/ci/DAEDE-SOURCE.txt ./upload/
           cp package/openwrt-honk/ci/HONK-SOURCE.txt ./upload/
-          cp feeds/packages/net/miniupnpd/ci-source.mk ./upload/MINIUPNPD-SOURCE.txt
+          cp feeds/packages/net/miniupnpd/ci-source.txt ./upload/MINIUPNPD-SOURCE.txt
 
           if [[ $WRT_TEST != 'true' ]]; then
             echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV

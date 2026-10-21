@@ -1,4 +1,5 @@
 # Official 2.3.11 + the CGNAT reconnect fix, without a local core patch.
+# Paired with the immutable packaging snapshot in Scripts/Miniupnpd.sh.
 # https://github.com/miniupnp/miniupnp/commit/2dcf63959950dbb2c3f97b7bd63773d499749134
 PKG_VERSION:=2.3.11
 PKG_RELEASE:=2
