@@ -108,6 +108,16 @@ MiniUPnP 官方 `2.3.11` 在 WAN 短暂断线后重新获得私有/CGNAT 地址�
 
 此修复恢复的是本机端口映射，不会替运营商配置 CGNAT，也不保证公网入站可达。未安装新固件的设备仍是旧核心，单独重启 `miniupnpd` 只能暂时恢复。无需清理工具链缓存；不会在运行中的路由器上自动重启代理或网络服务。
 
+### LuCI 端口映射显示
+
+新版 MiniUPnP 的 nftables DNAT 规则包含 `counter packets ... bytes ...`，旧版 `luci-app-upnp` 的状态读取器无法匹配，可能出现实际映射有效、LuCI 却显示空列表的问题。
+
+项目回移 [OpenWrt LuCI PR #9148](https://github.com/openwrt/luci/pull/9148) 的原始单行修复，提交为 `9f52246f6fc40420be8ee962502ac967f0f3ec26`。截至 2026-10-21 该 PR 尚未合并，不能视为官方已发布修复。未采用包含 UCI/访问控制迁移的整体重构，也未替换 LuCI 包、MiniUPnP 核心或其服务配置。
+
+`Scripts/LuciUpnp.sh` 在两个 WiFi 模式共用的构建步骤中处理 feed：旧读取器应用原始上游补丁；已包含该修复的 feed 保持原样，不重复应用。若将来读取器整体重构、补丁和反向校验均不匹配，构建明确提示复核，不覆盖新版实现或静默宣称兼容。上游正式合入后可移除这项回移；无需因普通版本号变化手工更新。
+
+Release 附带 `LUCI-UPNP-SOURCE.txt`，记录本次使用原生 feed 还是上游回移，以及修复提交和最终 RPC 文件 SHA256。验证应创建短租期临时映射、同时检查 LuCI 与真实规则，最后通过 UPnP 协议删除；现有 LuCI 的“删除”按钮会重启 MiniUPnP，不适合无中断诊断。本构建脚本不操作运行中的任何服务。
+
 ### 触发编译
 
 手动运行 Actions 中的 `CR1000A` 或 `CR1000A-test`，**一次触发同时启动 WiFi-YES 和 WiFi-NO 两个并行任务**，不需要分别选择或触发。两种模式共用 GENERAL/EXTRA 插件清单，分别生成独立 Release，标签以 `CR1000A-WIFI-YES-` / `CR1000A-WIFI-NO-` 开头，固件文件名包含 `wifi-yes` / `wifi-no`。某个任务失败不会自动取消另一个任务。

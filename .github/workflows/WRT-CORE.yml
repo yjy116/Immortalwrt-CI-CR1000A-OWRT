@@ -194,6 +194,7 @@ jobs:
           $GITHUB_WORKSPACE/Scripts/Packages.sh
           $GITHUB_WORKSPACE/Scripts/Handles.sh
           $GITHUB_WORKSPACE/Scripts/Miniupnpd.sh
+          bash $GITHUB_WORKSPACE/Scripts/LuciUpnp.sh
 
       - name: Custom Settings
         run: |
@@ -280,6 +281,7 @@ jobs:
           cp package/openwrt-daede/ci/DAEDE-SOURCE.txt ./upload/
           cp package/openwrt-honk/ci/HONK-SOURCE.txt ./upload/
           cp feeds/packages/net/miniupnpd/ci-source.txt ./upload/MINIUPNPD-SOURCE.txt
+          cp feeds/luci/applications/luci-app-upnp/ci-luci-upnp-source.txt ./upload/LUCI-UPNP-SOURCE.txt
 
           if [[ $WRT_TEST != 'true' ]]; then
             echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV

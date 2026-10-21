@@ -1,0 +1,25 @@
+From 9f52246f6fc40420be8ee962502ac967f0f3ec26 Mon Sep 17 00:00:00 2001
+From: Au Ychen <au-ychen@foxmail.com>
+Date: Tue, 20 Oct 2026 16:56:53 +0800
+Subject: [PATCH] luci-app-upnp: fix regex pattern for matching firewall rules
+
+Fix upstream counter regex mismatch causing mapping not to display.
+
+Signed-off-by: Au Ychen <au-ychen@foxmail.com>
+---
+ applications/luci-app-upnp/root/usr/share/rpcd/ucode/luci.upnp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/applications/luci-app-upnp/root/usr/share/rpcd/ucode/luci.upnp b/applications/luci-app-upnp/root/usr/share/rpcd/ucode/luci.upnp
+index f72b57b7ba84..4cd25b6a5151 100644
+--- a/applications/luci-app-upnp/root/usr/share/rpcd/ucode/luci.upnp
++++ b/applications/luci-app-upnp/root/usr/share/rpcd/ucode/luci.upnp
+@@ -67,7 +67,7 @@ const methods = {
+ 
+ 			if (nft) {
+ 				for (let line = nft.read('line'), num = 1; length(line); line = nft.read('line')) {
+-					let m = match(line, /^\t\tiif ".+" @nh,72,8 (0x6|0x11) th dport ([0-9]+) dnat ip to ([0-9.]+):([0-9]+)/);
++					let m = match(line, /^\s*iif ".+" @nh,72,8 (0x6|0x11) th dport ([0-9]+) .*dnat ip to ([0-9.]+):([0-9]+)/);
+ 
+ 					if (m) {
+ 						push(rules, {
