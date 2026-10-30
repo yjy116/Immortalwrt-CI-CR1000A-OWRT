@@ -121,8 +121,8 @@ jobs:
 
       - name: Initialization Values
         run: |
-          WRT_TARGET=$(grep -m 1 -oP '^CONFIG_TARGET_\K[\w]+(?=\=y)' "./Config/$WRT_CONFIG.txt")
-          WRT_SUBTARGET=$(grep -m 1 -oP "^CONFIG_TARGET_${WRT_TARGET}_\K[\w]+(?=\=y)" "./Config/$WRT_CONFIG.txt")
+          WRT_TARGET=$(grep -m 1 -oP '^CONFIG_TARGET_\K[^=_]+(?=\=y)' "./Config/$WRT_CONFIG.txt")
+          WRT_SUBTARGET=$(grep -m 1 -oP "^CONFIG_TARGET_${WRT_TARGET}_\K[^=_]+(?=\=y)" "./Config/$WRT_CONFIG.txt")
           echo "WRT_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
           echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}" >> $GITHUB_ENV
           echo "WRT_INFO=${WRT_SOURCE%%/*}" >> $GITHUB_ENV
@@ -209,12 +209,7 @@ jobs:
           $GITHUB_WORKSPACE/Scripts/Settings.sh
 
           make defconfig -j$(nproc) && make clean -j$(nproc)
-          for PACKAGE in kmod-dsa-rtl9303-spi cr1000a-recovery; do
-            if ! grep -qx "CONFIG_PACKAGE_${PACKAGE}=y" .config; then
-              echo "::error::The selected source did not enable required owrt package: $PACKAGE"
-              exit 1
-            fi
-          done
+          bash "$GITHUB_WORKSPACE/Scripts/CheckOwrt.sh" config .config
           echo "BPF/LLVM configuration after defconfig:"
           grep -E 'CONFIG_(BPF_TOOLCHAIN|USE_LLVM|HAS_BPF|NEED_BPF)' .config || true
           command -v clang
@@ -282,8 +277,22 @@ jobs:
           cp package/openwrt-honk/ci/HONK-SOURCE.txt ./upload/
           cp feeds/packages/net/miniupnpd/ci-source.txt ./upload/MINIUPNPD-SOURCE.txt
           cp feeds/luci/applications/luci-app-upnp/ci-luci-upnp-source.txt ./upload/LUCI-UPNP-SOURCE.txt
+          {
+            printf 'source=%s\nbranch=%s\ncommit=%s\nprofile=%s\n' "$WRT_REPO" "$WRT_BRANCH" "$WRT_HASH" "$WRT_CONFIG"
+            sha256sum package/qca-nss/nss-wifi-drv/Makefile package/qca-nss/nss-firmware/Makefile \
+              package/emortal/luci-app-qca-ppe-qos/Makefile package/network/config/qca-ppe-qos/Makefile
+            grep -E '^CONFIG_(ATH11K_NSS_WIFI|PACKAGE_(kmod-nss-wifi-drv|nss-firmware|luci-app-qca-ppe-qos|qca-ppe-qos))=' .config
+          } > ./upload/PPE-NSS-SOURCE.txt
 
           if [[ $WRT_TEST != 'true' ]]; then
+            mapfile -t MANIFESTS < <(find ./bin/targets/ -type f -name '*.manifest')
+            if [[ ${#MANIFESTS[@]} -eq 0 ]]; then
+              echo '::error::No firmware manifest available to verify PPE/NSS packages'
+              exit 1
+            fi
+            for MANIFEST in "${MANIFESTS[@]}"; do
+              bash "$GITHUB_WORKSPACE/Scripts/CheckOwrt.sh" manifest "$MANIFEST"
+            done
             echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV
             echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
 

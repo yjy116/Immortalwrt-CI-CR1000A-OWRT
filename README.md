@@ -8,31 +8,42 @@ This public CI builds both CR1000A WiFi variants from the controlled `yjy116/imm
 
 ## 配置来源
 
-初始对齐基线（实际源码提交以每次 Release 为准）：
+2026-10-30 核对基线（实际源码提交以每次 Release 为准）：
 
 | 用途 | 仓库与提交 |
 | --- | --- |
-| 编译模板 | [VIKINGYFY/OpenWRT-CI · 48bf00d](https://github.com/VIKINGYFY/OpenWRT-CI/tree/48bf00d0194c7d5164bed5bb41de398cfcaf5851) |
-| 固件源码 | [VIKINGYFY/immortalwrt owrt · 493b4e5](https://github.com/VIKINGYFY/immortalwrt/commit/493b4e55643a8798fb70f8805cc7fb9c9e55c34b)，Linux 6.18.52 |
+| 编译模板 | [VIKINGYFY/OpenWRT-CI · 64b8aead](https://github.com/VIKINGYFY/OpenWRT-CI/tree/64b8aeadde2ea4ac97a40be56d51bda4c43882ed)，采用通用配置及适用的脚本更新 |
+| 固件源码 | [VIKINGYFY/immortalwrt owrt · fd622baa](https://github.com/VIKINGYFY/immortalwrt/commit/fd622baa05b8adf55970ecfb123f9c3fed0f23a8)，Linux 6.18；核对时用户 fork 已与此提交一致 |
 | 补充插件 | [Immortalwrt-CI-JDC-AX6600 · 7cedfb8](https://github.com/yjy116/Immortalwrt-CI-JDC-AX6600/tree/7cedfb8b79528d461075bdbd8ac0a7eff7e0be5e) |
 
 - `Config/GENERAL.txt`：完整采用上游模板的通用配置。
-- `Config/CR1000A-WIFI-YES.txt`、`Config/CR1000A-WIFI-NO.txt`：采用上游 IPQ807X 有无线/无无线设置，只选 CR1000A，均显式启用 owrt 设备默认包 `kmod-dsa-rtl9303-spi`、`cr1000a-recovery`。
-- `Config/EXTRA.txt`：AX6600 已启用、模板未启用的通用插件及所需依赖。以后增减这些插件优先修改此文件。
+- `Config/CR1000A-WIFI-YES.txt`、`Config/CR1000A-WIFI-NO.txt`：采用上游 IPQ807X 有无线/无无线设置，只选 CR1000A，均显式启用原生默认包 `kmod-dsa-rtl9303-spi`、`cr1000a-recovery`、`kmod-nss-wifi-drv`。
+- `Config/EXTRA.txt`：AX6600 补充插件、后续已选插件及所需依赖，本次保留全部既有选项并新增上游 PPE QoS。以后增减这些插件优先修改此文件。
 - 配置合并顺序：设备配置、GENERAL、EXTRA、Settings 中的 PRIVATE 和手动 PACKAGE；私有配置与手动参数仍可覆盖普通插件选项。
 - `Scripts/Packages.sh`、`Handles.sh`、`Settings.sh` 使用上游模板结构，补入插件源和必要的插件兼容处理；处理失败会明确报错。
-- 默认主题与模板一致，使用 Aurora。保留本项目的设备名称、网络默认值、Auto-Build 原有调度、预热缓存和手动缓存清理。不恢复 `apt full-upgrade`。
+- 默认主题与模板一致，使用 Aurora。保留本项目的设备名称、网络默认值、Auto-Build 原有调度、预热缓存和手动缓存清理。不恢复 `apt full-upgrade`，也不引入模板的浮动 Rust 编译器覆盖或自动缓存删除；并非整套 workflow 无差别覆盖。
 
 ## 硬件支持
 
 LAN、WAN、无线及升级流程采用 owrt 上游实现，不注入本地 no-PHY 补丁、强制链路、LAN 转发表、VLAN 初始化或 `yjy116/files` overlay。设备树、板级网络初始化、RTL9303 驱动及恢复脚本保持上游原样。
 
 - 有线：使用 PPE/EDMA 和 RTL9303 SPI DSA，默认 LAN 接口为 `lan1`、`lan2`、`lan3`，WAN 为 `wan`，不再使用 main 分支的 NSS/ECM/SSDK 和厂商用户态交换机初始化程序。
-- 硬件包：选择 `kmod-dsa-rtl9303-spi` 与 `cr1000a-recovery`，配置展开后检查两包确实启用。owrt 已移除 `cr1000a-support`，此处不再选择或补回它。
+- 硬件包：选择 `kmod-dsa-rtl9303-spi`、`cr1000a-recovery` 与新的 `kmod-nss-wifi-drv`，配置展开和产物清单均检查。owrt 已移除 `cr1000a-support`，此处不再选择或补回它。
 - 升级：沿用上游 eMMC、FIT 大小和恢复镜像校验流程。上游 CR1000A FIT 限制为 20 MiB；这不是 rootfs 或 eMMC 总容量限制，不在 CI 中覆盖这些限制。
 - SQM：保留 LuCI 页面，使用标准 `sqm-scripts`，不再选择 `sqm-scripts-nss`。旧 NSS 队列脚本配置不能直接套用；整形与流量卸载的实机效果仍需验证。
 
-WiFi-YES 使用上游 ath11k 驱动、QCN9074 固件及 CR1000A 板级数据，**支持板载无线，但没有 main 的 NSS 无线加速**。WiFi-NO 按上游配置禁用 ath11k AHB/PCIe 驱动及 IPQ8074/QCN9074 无线固件，并使用 `ipq8074-nowifi.dtsi` 调整 Q6 预留内存，不提供板载 WiFi。两种模式均保留原生 LAN/WAN 支持。编译成功不等于原生 6GHz、全部 LAN 口或实际吞吐已通过验证。
+WiFi-YES 使用上游 ath11k 驱动、QCN9074 固件及 CR1000A 板级数据，采用新 `ATH11K_NSS_WIFI` 集成。WiFi-NO 按上游配置禁用 ath11k AHB/PCIe 驱动及 IPQ8074/QCN9074 无线固件，并使用 `ipq8074-nowifi.dtsi` 调整 Q6 预留内存，不提供板载 WiFi。**两种模式均保留原生 LAN/WAN 及新 NSS 驱动**；无无线模式由上游以 `wlan=0` 启动 NSS，不手工删掉它。编译成功不等于原生 6GHz、全部 LAN 口或实际吞吐已通过验证。
+
+### 原生 PPE/NSS 与 PPE QoS
+
+上游 [d4edc748](https://github.com/VIKINGYFY/immortalwrt/commit/d4edc7481a9f14b549575dd2cc849a902797055c) 引入新的 PPE/NSS 协作方案，[3dfd706f](https://github.com/VIKINGYFY/immortalwrt/commit/3dfd706f58c16bc86563930cfbbaea0207f06c54) 将 NSS 与无线包选择解耦。本项目直接使用这些源码，不再叠加历史 main 分支的 ECM、SSDK 或旧 NSS 补丁。
+
+- 普通有线单播继续走 PPE/EDMA；新 NSS 负责支持的无线数据路径及 USB/raw-IP 等重定向场景。不是所有 VPN、隧道或代理流量都可卸载，不承诺代理插件获得额外加速。
+- 沿用上游 `nss-wifi` 默认值 `offload=1`、固件 `12.5`。改变 NSS 数据环所有权/卸载模式需要按上游要求重启；本仓库不会修改运行中设备。
+- 新增上游 `luci-app-qca-ppe-qos` 和 `qca-ppe-qos`，页面位于 **网络 → PPE QoS**，用于硬件分类、DSCP 和优先级。它与 SQM 限速/队列管理互补，保留现有 SQM；使用上游 QoS 默认规则，不额外预设带宽或覆盖用户配置。
+- 上游报告的流量测试设备为 AX6/RE-CS-02，不能当作 CR1000A 已通过验证；PPE QoS 作者也未声明运行时验证完成。新固件仍需实机确认 LAN/WAN、无线、代理及 SQM 交互。
+
+`Scripts/CheckOwrt.sh` 在 `make defconfig` 后检查原生 DSA、恢复、NSS 与 QoS 配置，在发布前检查实际 `.manifest` 包清单，并拒绝 WiFi-NO 混入 ath11k。配置检查允许按设备安装的无线包为 `=m`，但发布清单必须实际包含 WiFi-YES 所需驱动。Release 附带 `PPE-NSS-SOURCE.txt`，记录源码提交、模式、四份原生包 Makefile 的 SHA256 和关键配置，方便与固件清单交叉核对；这些检查不代替完整编译或刷机测试。
 
 **从 main/NSS 固件迁移：** 先备份设置并准备恢复手段，建议不保留旧网络配置刷入，再按新接口重新配置 LAN/VLAN。不要直接恢复旧 `/etc/config/network`、NSS SQM 或硬件 overlay。若手工迁移 `/etc/rc.local`，移除旧 `/lib/rtl/init.sh`、`/lib/aqr/init.sh`、`/lib/mmc/init.sh` 及 `exec-dir`/switch 调用，保留其他自定义命令。这里不自动删除路由器上的用户配置，也未验证从每一种历史固件跨架构升级的安全性。
 
@@ -67,11 +78,13 @@ The owner confirmed US operation. Fresh wireless settings use US, a separate 6GH
 在模板的 HomeProxy、GecoosAC、Mini DiskManager、NATMapT、Samba、UPnP、WOLUltra 等基础上，增加：
 
 - 代理：DAE、DAED、统一 `luci-app-daede`、Nikki、Passwall、OpenClash。
-- 联网与服务：AdGuardHome、EasyTier、Tailscale、ZeroTier、WireGuard、标准 SQM、DDNS-Go、Lucky、USB 打印、VLMCSD、SoftEther VPN。
+- 联网与服务：AdGuardHome、EasyTier、Tailscale、ZeroTier、WireGuard、标准 SQM、PPE QoS、DDNS-Go、Lucky、USB 打印、VLMCSD、SoftEther VPN。
 - 工具：qBittorrent、TTYD、CPUFreq、Statistics、VnStat2、Btop、Tcpdump，以及参考仓库的通用存储/诊断工具。
 - GeoData 更新器：保留参考项目的功能和每周更新时间，数据包仍使用上游 feed，不重复定义；下载及 SHA256 校验失败返回非零，不替换旧数据，不使用第三方下载代理。
 
 HomeProxy/sing-box 按模板从 `VIKINGYFY/packages` 配套获取，不再保留旧的“官方 feed 专供”处理，不单独强升 sing-box。
+
+保留 NATMapT。其核心 [NATMap](https://github.com/heiher/natmap) 面向兼容的 Full-cone NAT 映射，并非 UPnP 的重复组件；没有独立公网 IPv4 不代表它无用，也不代表任意 CGNAT 都能穿透。只有需要让外部设备通过公网端口访问内网服务时才需配置；尚未对用户当前上级 NAT 做可达性测试，不能承诺成功。
 
 DAE/DAED 使用参考项目的 `kenzok8/openwrt-daede@0b0e5d6`，包括后端切换互斥、旧订阅任务迁移和错误上报修复。使用内核 BTF，不额外携带大型 `vmlinux-btf`；准确源码信息随 Release 的 `DAEDE-SOURCE.txt` 发布。迁移保留旧数据库/配置和订阅计划；自动更新凭据需在新界面中核对。
 
@@ -112,7 +125,7 @@ MiniUPnP 官方 `2.3.11` 在 WAN 短暂断线后重新获得私有/CGNAT 地址�
 
 新版 MiniUPnP 的 nftables DNAT 规则包含 `counter packets ... bytes ...`，旧版 `luci-app-upnp` 的状态读取器无法匹配，可能出现实际映射有效、LuCI 却显示空列表的问题。
 
-项目回移 [OpenWrt LuCI PR #9148](https://github.com/openwrt/luci/pull/9148) 的原始单行修复，提交为 `9f52246f6fc40420be8ee962502ac967f0f3ec26`。截至 2026-10-21 该 PR 尚未合并，不能视为官方已发布修复。未采用包含 UCI/访问控制迁移的整体重构，也未替换 LuCI 包、MiniUPnP 核心或其服务配置。
+项目回移 [OpenWrt LuCI PR #9148](https://github.com/openwrt/luci/pull/9148) 的原始单行修复，提交为 `9f52246f6fc40420be8ee962502ac967f0f3ec26`。截至 2026-10-30 该 PR 已关闭但未合并，OpenWrt/ImmortalWrt 的读取器仍存在旧匹配式，不能视为官方已发布修复。未采用包含 UCI/访问控制迁移的整体重构，也未替换 LuCI 包、MiniUPnP 核心或其服务配置。
 
 `Scripts/LuciUpnp.sh` 在两个 WiFi 模式共用的构建步骤中处理 feed：旧读取器应用原始上游补丁；已包含该修复的 feed 保持原样，不重复应用。若将来读取器整体重构、补丁和反向校验均不匹配，构建明确提示复核，不覆盖新版实现或静默宣称兼容。上游正式合入后可移除这项回移；无需因普通版本号变化手工更新。
 
@@ -174,4 +187,4 @@ bash Tests/test_mihomo_conflicts.sh
 bash Tests/test_geodata_updater.sh
 ```
 
-检查覆盖双模式并行矩阵及 owrt 分支、WiFi-NO 上游禁用项和 Q6 调整、缓存隔离、模板/插件差集、DSA 与恢复包缺失时明确失败、原生 LAN/WAN/升级文件不被改写、第三射频板级数据、无线默认值转换、Honk/Doona 发布输入，以及 DAE/DAED 迁移和切换。服务测试只替代路由器专有 I/O，不代表实机运行；完整固件仍由 GitHub Actions 验证。
+检查覆盖双模式并行矩阵及 owrt 分支、WiFi-NO 上游禁用项和 Q6 调整、缓存隔离、模板/插件差集、DSA/恢复/NSS/QoS 配置和 manifest 缺包报错、原生 LAN/WAN/升级/NSS/QoS 文件不被改写、第三射频板级数据、无线默认值转换、Honk/Doona 发布输入，以及 DAE/DAED 迁移和切换。服务测试只替代路由器专有 I/O，不代表实机运行；完整固件仍由 GitHub Actions 验证。

@@ -46,7 +46,9 @@ class LanCompatibilityTests(unittest.TestCase):
             )
             for path in hardware_files:
                 copy_file(SOURCE / path, root / "wrt" / path)
-            for path in ("package/emortal/cr1000a-recovery", "package/kernel/rtl9303"):
+            for path in ("package/emortal/cr1000a-recovery", "package/kernel/rtl9303",
+                         "package/qca-nss", "package/emortal/luci-app-qca-ppe-qos",
+                         "package/network/config/qca-ppe-qos"):
                 shutil.copytree(SOURCE / path, root / "wrt" / path)
             originals = {path.relative_to(root / "wrt"): path.read_bytes()
                          for path in (root / "wrt").rglob("*") if path.is_file()}
@@ -54,7 +56,7 @@ class LanCompatibilityTests(unittest.TestCase):
                      {"GITHUB_WORKSPACE": root.as_posix()})
             for path, content in originals.items():
                 self.assertEqual(content, (root / "wrt" / path).read_bytes(), str(path))
-            self.assertFalse((package / "qca-nss").exists())
+            self.assertTrue((package / "qca-nss/nss-wifi-drv").is_dir())
             self.assertFalse((package / "emortal/cr1000a-support").exists())
 
 

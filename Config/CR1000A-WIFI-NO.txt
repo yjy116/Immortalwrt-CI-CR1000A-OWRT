@@ -5,6 +5,8 @@ CONFIG_TARGET_DEVICE_qualcommax_ipq807x_DEVICE_verizon_cr1000a=y
 # Native owrt device packages; do not restore the legacy vendor init helpers.
 CONFIG_PACKAGE_kmod-dsa-rtl9303-spi=y
 CONFIG_PACKAGE_cr1000a-recovery=y
+# Native owrt target default, shared by WiFi and non-WiFi offload.
+CONFIG_PACKAGE_kmod-nss-wifi-drv=y
 
 # Wireless exclusions from the upstream IPQ807X-WIFI-NO profile.
 CONFIG_PACKAGE_kmod-ath=n

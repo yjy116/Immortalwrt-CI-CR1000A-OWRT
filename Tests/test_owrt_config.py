@@ -10,9 +10,10 @@ import unittest
 import yaml
 
 from test_compatibility import REPO, run_bash
+from test_ppe_nss import REQUIRED, config
 
 
-REQUIRED_PACKAGES = ("kmod-dsa-rtl9303-spi", "cr1000a-recovery")
+REQUIRED_PACKAGES = REQUIRED
 
 
 def workflow(name):
@@ -27,9 +28,13 @@ class OwrtConfigTests(unittest.TestCase):
         validation = validation.split('echo "BPF/LLVM', 1)[0]
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            config = "".join(f"CONFIG_PACKAGE_{package}=y\n" for package in packages)
-            (root / ".config").write_text(config, encoding="utf-8")
-            return run_bash(validation, root, {})
+            content = config("YES")
+            for package in set(REQUIRED_PACKAGES) - set(packages):
+                content = content.replace(f"CONFIG_PACKAGE_{package}=y\n", "")
+            (root / ".config").write_text(content, encoding="utf-8")
+            return run_bash(validation, root, {
+                "GITHUB_WORKSPACE": REPO.as_posix(), "WRT_CONFIG": "CR1000A-WIFI-YES",
+            })
 
     def test_dsa_and_recovery_config_is_accepted(self):
         self.check_config(REQUIRED_PACKAGES)
@@ -44,6 +49,29 @@ class OwrtConfigTests(unittest.TestCase):
     def test_legacy_support_cannot_substitute_for_owrt_driver(self):
         with self.assertRaises(subprocess.CalledProcessError):
             self.check_config(["cr1000a-support"])
+
+    def test_release_checks_real_manifests_before_packaging(self):
+        steps = workflow("WRT-CORE.yml")["jobs"]["core"]["steps"]
+        packaging = next(step["run"] for step in steps if step["name"] == "Package Firmware")
+        validation = "mapfile -t MANIFESTS" + packaging.split("mapfile -t MANIFESTS", 1)[1]
+        validation = validation.split('echo "WRT_KVER=', 1)[0]
+        manifest = "".join(f"{name} - 1.0-r1\n" for name in REQUIRED_PACKAGES)
+        scenarios = (None, manifest, manifest.replace("\nqca-ppe-qos - 1.0-r1\n", "\n"),
+                     manifest + "kmod-ath11k - 1.0-r1\n")
+        for content in scenarios:
+            with self.subTest(content=content), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                target = root / "bin/targets/qualcommax/ipq807x"
+                target.mkdir(parents=True)
+                if content is not None:
+                    (target / "cr1000a.manifest").write_text(content, encoding="utf-8")
+                environment = {"GITHUB_WORKSPACE": REPO.as_posix(),
+                               "WRT_CONFIG": "CR1000A-WIFI-NO"}
+                if content == manifest:
+                    run_bash(validation, root, environment)
+                else:
+                    with self.assertRaises(subprocess.CalledProcessError):
+                        run_bash(validation, root, environment)
 
     def test_scheduler_watches_fork_owrt_but_dispatches_ci_main(self):
         jobs = workflow("Auto-Build.yml")["jobs"]
