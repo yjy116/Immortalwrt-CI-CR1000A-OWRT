@@ -137,6 +137,10 @@ Release 附带 `LUCI-UPNP-SOURCE.txt`，记录本次使用原生 feed 还是上�
 
 将 `TEST` 设为 true 时仍会启动两个任务，但只生成两种配置，不编译固件。构建主机继续跟随模板使用 `ubuntu-latest`。原有 Auto-Build 调度及新提交检测逻辑不变，只把检测分支改为你 fork 的 `owrt`。WiFi-NO 请通过有线网络管理；不要通过手动 PACKAGE 或 PRIVATE 配置重新启用无线驱动，否则会与无无线内存布局冲突。
 
+2026-10-30 的运行 `40994067733` 分配到 Ubuntu 26.04，两种模式均在初始化阶段被旧 `init_build_environment.sh` 的系统白名单拒绝，尚未下载固件源码。环境依赖现跟随模板通过 `apt-get install --no-install-recommends` 显式安装，保留原有 `libfuse-dev`，不再调用该外部安装器；不伪装系统版本、不忽略安装错误，也不恢复 `full-upgrade`。这是构建主机适配，不改变固件内核或插件选择。
+
+FullCone 已使用 `Config/GENERAL.txt` 的 `CONFIG_PACKAGE_fullconenat-sonic=y`，没有选择旧 `kmod-nft-fullcone`。owrt 的 SONiC 实现集成到原生 NAT 模块，并禁止与旧 FullCone 包共装；不要为此次环境初始化错误补回旧模块。主机及配置检查不能代替完整构建和刷机验证。
+
 ### 受控更新源码
 
 本 CI **不会自动同步 VIKINGYFY 源码到你的 fork**。需要升级时，先核对上游 owrt 的变更，再手动同步你 fork 的 `owrt` 分支，然后触发本仓库构建。不要把 `main` 合并进 `owrt`，也不要以为只同步 fork 的默认 `main` 就更新了 owrt。
