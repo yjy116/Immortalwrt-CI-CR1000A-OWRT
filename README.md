@@ -32,7 +32,7 @@ LAN、WAN、无线及升级流程采用 owrt 上游实现，不注入本地 no-P
 - 升级：沿用上游 eMMC、FIT 大小和恢复镜像校验流程。上游 CR1000A FIT 限制为 20 MiB；这不是 rootfs 或 eMMC 总容量限制，不在 CI 中覆盖这些限制。
 - SQM：保留 LuCI 页面，使用标准 `sqm-scripts`，不再选择 `sqm-scripts-nss`。旧 NSS 队列脚本配置不能直接套用；整形与流量卸载的实机效果仍需验证。
 
-WiFi-YES 使用上游 ath11k 驱动、QCN9074 固件及 CR1000A 板级数据，采用新 `ATH11K_NSS_WIFI` 集成。WiFi-NO 按上游配置禁用 ath11k AHB/PCIe 驱动及 IPQ8074/QCN9074 无线固件，并使用 `ipq8074-nowifi.dtsi` 调整 Q6 预留内存，不提供板载 WiFi。**两种模式均保留原生 LAN/WAN 及新 NSS 驱动**；无无线模式由上游以 `wlan=0` 启动 NSS，不手工删掉它。编译成功不等于原生 6GHz、全部 LAN 口或实际吞吐已通过验证。
+WiFi-YES 使用上游 ath11k 驱动、QCN9074 固件及 CR1000A 板级数据，采用新 `ATH11K_NSS_WIFI` 集成。WiFi-NO 保留上游对 ath11k AHB/PCIe 驱动及 IPQ8074/QCN9074 无线固件的禁用配置，并使用 `ipq8074-nowifi.dtsi` 调整 Q6 预留内存，不提供板载 WiFi。启用按设备打包后，`make defconfig` 仍可能将无线包展开为 `=m`，表示构建模块包，不等于装入基础 rootfs 或开启无线。**两种模式均保留原生 LAN/WAN 及新 NSS 驱动**；上游启动脚本根据实际安装的无线驱动和可用硬件选择 `wlan`，无可用无线总线时使用 `wlan=0`，不是只看编译期 `ATH11K_NSS_WIFI` 开关。编译成功不等于原生 6GHz、全部 LAN 口或实际吞吐已通过验证。
 
 ### 原生 PPE/NSS 与 PPE QoS
 
@@ -43,7 +43,7 @@ WiFi-YES 使用上游 ath11k 驱动、QCN9074 固件及 CR1000A 板级数据，�
 - 新增上游 `luci-app-qca-ppe-qos` 和 `qca-ppe-qos`，页面位于 **网络 → PPE QoS**，用于硬件分类、DSCP 和优先级。它与 SQM 限速/队列管理互补，保留现有 SQM；使用上游 QoS 默认规则，不额外预设带宽或覆盖用户配置。
 - 上游报告的流量测试设备为 AX6/RE-CS-02，不能当作 CR1000A 已通过验证；PPE QoS 作者也未声明运行时验证完成。新固件仍需实机确认 LAN/WAN、无线、代理及 SQM 交互。
 
-`Scripts/CheckOwrt.sh` 在 `make defconfig` 后检查原生 DSA、恢复、NSS 与 QoS 配置，在发布前检查实际 `.manifest` 包清单，并拒绝 WiFi-NO 混入 ath11k。配置检查允许按设备安装的无线包为 `=m`，但发布清单必须实际包含 WiFi-YES 所需驱动。Release 附带 `PPE-NSS-SOURCE.txt`，记录源码提交、模式、四份原生包 Makefile 的 SHA256 和关键配置，方便与固件清单交叉核对；这些检查不代替完整编译或刷机测试。
+`Scripts/CheckOwrt.sh` 在 `make defconfig` 后检查原生 DSA、恢复、NSS 与 QoS 配置。WiFi-NO 拒绝无线驱动包选为 `=y`，但允许上游按设备打包产生的 `=m` 及编译期 NSS 无线集成；WiFi-YES 仍要求三个无线驱动包和 NSS 集成。发布前核对通用 `.manifest` 中显式内置的原生公共包，并拒绝 WiFi-NO 基础清单中出现无线驱动。**该清单来自 `TARGET_DIR_ORIG`，不是各设备追加包后的完整清单**，不能用它单独证明设备镜像中的全部无线包是否存在。Release 附带 `PPE-NSS-SOURCE.txt`，记录源码提交、模式、四份原生包 Makefile 的 SHA256 和关键配置；最终设备镜像内容及实际无线状态仍需分别核对，不把这些检查当作完整编译或刷机测试。
 
 **从 main/NSS 固件迁移：** 先备份设置并准备恢复手段，建议不保留旧网络配置刷入，再按新接口重新配置 LAN/VLAN。不要直接恢复旧 `/etc/config/network`、NSS SQM 或硬件 overlay。若手工迁移 `/etc/rc.local`，移除旧 `/lib/rtl/init.sh`、`/lib/aqr/init.sh`、`/lib/mmc/init.sh` 及 `exec-dir`/switch 调用，保留其他自定义命令。这里不自动删除路由器上的用户配置，也未验证从每一种历史固件跨架构升级的安全性。
 

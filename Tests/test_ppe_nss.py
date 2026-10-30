@@ -17,9 +17,14 @@ RADIOS = ("kmod-ath11k", "kmod-ath11k-ahb", "kmod-ath11k-pci")
 
 def config(mode):
     lines = [f"CONFIG_PACKAGE_{name}=y" for name in REQUIRED]
+    lines += ["CONFIG_TARGET_MULTI_PROFILE=y", "CONFIG_TARGET_PER_DEVICE_ROOTFS=y"]
     if mode == "YES":
         lines += [f"CONFIG_PACKAGE_{name}=y" for name in RADIOS]
         lines += ["CONFIG_ATH11K_NSS_WIFI=y"]
+    else:
+        # Values observed in the published WiFi-NO defconfig (2026-10-22).
+        lines += ["CONFIG_PACKAGE_kmod-ath11k=m", "CONFIG_PACKAGE_kmod-ath11k-ahb=m",
+                  "CONFIG_PACKAGE_kmod-ath11k-pci=m"]
     return "\n".join(lines) + "\n"
 
 
@@ -49,12 +54,31 @@ class PpeNssTests(unittest.TestCase):
         with self.assertRaises(subprocess.CalledProcessError):
             self.validate("config", config("YES").replace("CONFIG_ATH11K_NSS_WIFI=y", ""))
 
-    def test_no_rejects_enabled_radio_or_wlan_integration(self):
-        for option in (*[f"PACKAGE_{name}" for name in RADIOS], "ATH11K_NSS_WIFI"):
-            for value in ("y", "m"):
-                with self.subTest(option=option, value=value):
-                    with self.assertRaises(subprocess.CalledProcessError):
-                        self.validate("config", config("NO") + f"CONFIG_{option}={value}\n", "NO")
+    def test_no_accepts_compiled_modules_with_nss_build_integration(self):
+        self.validate("config", config("NO") + "CONFIG_ATH11K_NSS_WIFI=y\n", "NO")
+
+    def test_no_rejects_built_in_radios(self):
+        for package in RADIOS:
+            with self.subTest(package=package):
+                content = config("NO").replace(f"CONFIG_PACKAGE_{package}=m",
+                                               f"CONFIG_PACKAGE_{package}=y")
+                with self.assertRaises(subprocess.CalledProcessError) as error:
+                    self.validate("config", content, "NO")
+                self.assertIn(package, error.exception.stdout)
+
+    def test_yes_accepts_device_modules_but_requires_each_driver(self):
+        content = config("YES")
+        for package in RADIOS:
+            content = content.replace(f"CONFIG_PACKAGE_{package}=y", f"CONFIG_PACKAGE_{package}=m")
+        self.validate("config", content)
+        for package in RADIOS:
+            with self.subTest(package=package):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    self.validate("config", content.replace(f"CONFIG_PACKAGE_{package}=m\n", ""))
+
+    def test_yes_base_manifest_does_not_require_device_only_packages(self):
+        manifest = "".join(f"{package} - 1.0-r1\n" for package in REQUIRED)
+        self.validate("manifest", manifest)
 
     def test_manifest_verifies_real_packages_not_only_configuration(self):
         manifest = "".join(f"{package} - 1.0-r1\n" for package in (*REQUIRED, *RADIOS))

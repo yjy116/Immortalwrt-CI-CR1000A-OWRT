@@ -36,19 +36,20 @@ for PACKAGE in "${REQUIRED[@]}"; do
 done
 
 for PACKAGE in "${RADIOS[@]}"; do
-	if [[ "$WIFI" == yes ]]; then
+	if [[ "$WIFI" == no ]]; then
+		# Per-device defconfig can select =m without installing it in the base rootfs.
+		if has_package "$PACKAGE" y; then
+			fail "$KIND includes $PACKAGE in WiFi-NO base rootfs"
+		fi
+	elif [[ "$KIND" == config ]]; then
+		# Image/Manifest describes TARGET_DIR_ORIG, not each device's added packages.
 		has_package "$PACKAGE" '(y|m)' || fail "$KIND is missing WiFi-YES package: $PACKAGE"
-	elif has_package "$PACKAGE" '(y|m)'; then
-		fail "$KIND enables $PACKAGE in WiFi-NO"
 	fi
 done
 
-if [[ "$KIND" == config ]]; then
-	if [[ "$WIFI" == yes ]]; then
-		grep -qx 'CONFIG_ATH11K_NSS_WIFI=y' "$INPUT" || fail 'WiFi-YES lacks ATH11K_NSS_WIFI'
-	elif grep -Eq '^CONFIG_ATH11K_NSS_WIFI=(y|m)$' "$INPUT"; then
-		fail 'WiFi-NO enables ATH11K_NSS_WIFI'
-	fi
+# This is a build capability. Native nss-wifi checks installed modules and buses at boot.
+if [[ "$KIND" == config && "$WIFI" == yes ]]; then
+	grep -qx 'CONFIG_ATH11K_NSS_WIFI=y' "$INPUT" || fail 'WiFi-YES lacks ATH11K_NSS_WIFI'
 fi
 
 echo "Verified $WRT_CONFIG $KIND: native PPE/NSS and PPE QoS packages"
