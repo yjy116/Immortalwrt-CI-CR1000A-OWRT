@@ -200,8 +200,7 @@ jobs:
 
           $GITHUB_WORKSPACE/Scripts/Packages.sh
           $GITHUB_WORKSPACE/Scripts/Handles.sh
-          $GITHUB_WORKSPACE/Scripts/Miniupnpd.sh
-          bash $GITHUB_WORKSPACE/Scripts/LuciUpnp.sh
+          bash "$GITHUB_WORKSPACE/Scripts/UpnpSource.sh" ./package/packages ./tmp/upnp-source
 
       - name: Custom Settings
         run: |
@@ -282,8 +281,7 @@ jobs:
           cp -f ./.config ./upload/Config-"$WRT_CONFIG"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
           cp package/openwrt-daede/ci/DAEDE-SOURCE.txt ./upload/
           cp package/openwrt-honk/ci/HONK-SOURCE.txt ./upload/
-          cp feeds/packages/net/miniupnpd/ci-source.txt ./upload/MINIUPNPD-SOURCE.txt
-          cp feeds/luci/applications/luci-app-upnp/ci-luci-upnp-source.txt ./upload/LUCI-UPNP-SOURCE.txt
+          cp ./tmp/upnp-source/*.txt ./upload/
           {
             printf 'source=%s\nbranch=%s\ncommit=%s\nprofile=%s\n' "$WRT_REPO" "$WRT_BRANCH" "$WRT_HASH" "$WRT_CONFIG"
             sha256sum package/qca-nss/nss-wifi-drv/Makefile package/qca-nss/nss-firmware/Makefile \

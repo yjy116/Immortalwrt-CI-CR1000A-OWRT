@@ -8,20 +8,20 @@ This public CI builds both CR1000A WiFi variants from the controlled `yjy116/imm
 
 ## 配置来源
 
-2026-10-30 核对基线（实际源码提交以每次 Release 为准）：
+2026-11-02 核对基线（实际源码提交以每次 Release 为准）：
 
 | 用途 | 仓库与提交 |
 | --- | --- |
-| 编译模板 | [VIKINGYFY/OpenWRT-CI · 64b8aead](https://github.com/VIKINGYFY/OpenWRT-CI/tree/64b8aeadde2ea4ac97a40be56d51bda4c43882ed)，采用通用配置及适用的脚本更新 |
-| 固件源码 | [VIKINGYFY/immortalwrt owrt · fd622baa](https://github.com/VIKINGYFY/immortalwrt/commit/fd622baa05b8adf55970ecfb123f9c3fed0f23a8)，Linux 6.18；核对时用户 fork 已与此提交一致 |
+| 编译模板 | [VIKINGYFY/OpenWRT-CI · 967e4c7](https://github.com/VIKINGYFY/OpenWRT-CI/tree/967e4c7728fba8e54c62066b5507aed015844588)，通用配置与原 64b8aead 相同，本次补充缺少的可用主题源 |
+| 固件源码 | [VIKINGYFY/immortalwrt owrt · 17d1ac0](https://github.com/VIKINGYFY/immortalwrt/commit/17d1ac0c34b3f7eefb407277d25f4b78591f44c8)，Linux 6.18；核对时用户 fork 已与此提交一致，未再次同步或改写源码 |
 | 补充插件 | [Immortalwrt-CI-JDC-AX6600 · 7cedfb8](https://github.com/yjy116/Immortalwrt-CI-JDC-AX6600/tree/7cedfb8b79528d461075bdbd8ac0a7eff7e0be5e) |
 
 - `Config/GENERAL.txt`：完整采用上游模板的通用配置。
 - `Config/CR1000A-WIFI-YES.txt`、`Config/CR1000A-WIFI-NO.txt`：采用上游 IPQ807X 有无线/无无线设置，只选 CR1000A，均显式启用原生默认包 `kmod-dsa-rtl9303-spi`、`cr1000a-recovery`、`kmod-nss-wifi-drv`。
-- `Config/EXTRA.txt`：AX6600 补充插件、后续已选插件及所需依赖，本次保留全部既有选项并新增上游 PPE QoS。以后增减这些插件优先修改此文件。
+- `Config/EXTRA.txt`：AX6600 补充插件、后续已选插件及所需依赖。保留已有 PPE QoS 和其他功能插件；本次增加 Vantage、配套仪表盘及 Footstrap。以后增减这些插件优先修改此文件。
 - 配置合并顺序：设备配置、GENERAL、EXTRA、Settings 中的 PRIVATE 和手动 PACKAGE；私有配置与手动参数仍可覆盖普通插件选项。
 - `Scripts/Packages.sh`、`Handles.sh`、`Settings.sh` 使用上游模板结构，补入插件源和必要的插件兼容处理；处理失败会明确报错。
-- 默认主题与模板一致，使用 Aurora。保留本项目的设备名称、网络默认值、Auto-Build 原有调度、预热缓存和手动缓存清理。不恢复 `apt full-upgrade`，也不引入模板的浮动 Rust 编译器覆盖或自动缓存删除；并非整套 workflow 无差别覆盖。
+- 默认主题按用户要求改为 Vantage，保留 Aurora 及其配置插件，另增加 Footstrap 供手动切换。保留本项目的设备名称、网络默认值、Auto-Build 原有调度、预热缓存和手动缓存清理。不恢复 `apt full-upgrade`，也不引入模板的浮动 Rust 编译器覆盖或自动缓存删除；并非整套 workflow 无差别覆盖。
 
 ## 硬件支持
 
@@ -41,7 +41,7 @@ WiFi-YES 使用上游 ath11k 驱动、QCN9074 固件及 CR1000A 板级数据，�
 - 普通有线单播继续走 PPE/EDMA；新 NSS 负责支持的无线数据路径及 USB/raw-IP 等重定向场景。不是所有 VPN、隧道或代理流量都可卸载，不承诺代理插件获得额外加速。
 - 沿用上游 `nss-wifi` 默认值 `offload=1`、固件 `12.5`。改变 NSS 数据环所有权/卸载模式需要按上游要求重启；本仓库不会修改运行中设备。
 - 新增上游 `luci-app-qca-ppe-qos` 和 `qca-ppe-qos`，页面位于 **网络 → PPE QoS**，用于硬件分类、DSCP 和优先级。它与 SQM 限速/队列管理互补，保留现有 SQM；使用上游 QoS 默认规则，不额外预设带宽或覆盖用户配置。
-- 上游报告的流量测试设备为 AX6/RE-CS-02，不能当作 CR1000A 已通过验证；PPE QoS 作者也未声明运行时验证完成。新固件仍需实机确认 LAN/WAN、无线、代理及 SQM 交互。
+- 上游近期已报告 CR1000A/RE-CS-02 的三频 NSS 崩溃恢复与转发测试，并在 PPE QoS 默认包更新中报告了页面开关和硬件分类验证。这些属于上游证据，不代表本仓库的新固件及全部插件组合已刷机测试；仍需确认 LAN/WAN、无线、代理及 SQM 交互。
 
 `Scripts/CheckOwrt.sh` 在 `make defconfig` 后检查原生 DSA、恢复、NSS 与 QoS 配置。WiFi-NO 拒绝无线驱动包选为 `=y`，但允许上游按设备打包产生的 `=m` 及编译期 NSS 无线集成；WiFi-YES 仍要求三个无线驱动包和 NSS 集成。发布前核对通用 `.manifest` 中显式内置的原生公共包，并拒绝 WiFi-NO 基础清单中出现无线驱动。**该清单来自 `TARGET_DIR_ORIG`，不是各设备追加包后的完整清单**，不能用它单独证明设备镜像中的全部无线包是否存在。Release 附带 `PPE-NSS-SOURCE.txt`，记录源码提交、模式、四份原生包 Makefile 的 SHA256 和关键配置；最终设备镜像内容及实际无线状态仍需分别核对，不把这些检查当作完整编译或刷机测试。
 
@@ -74,6 +74,17 @@ WiFi-YES 使用上游 ath11k 驱动、QCN9074 固件及 CR1000A 板级数据，�
 The owner confirmed US operation. Fresh wireless settings use US, a separate 6GHz SSID and WPA3-SAE; native owrt detection, drivers and channel/power rules are retained. Existing settings are not overwritten and hardware operation remains unverified.
 
 ## 插件补充
+
+### 2026-11-02 插件差集核对
+
+上游模板的 `Config/GENERAL.txt` 与本仓库相同，没有漏选其中的通用功能插件。PPE QoS 已存在，本次不改其配置、依赖、默认规则或校验逻辑。新源码已将 PPE QoS 后端、LuCI 和中文翻译加入 AX 默认包；其总开关仍为 `active=0`，不是自动开启限速。
+
+- 补入 [anothaDev/luci-theme-vantage](https://github.com/anothaDev/luci-theme-vantage)：`luci-theme-vantage`、`luci-app-vantage` 及两份中文翻译。核对版本为 `1.0.12`，后续编译跟随该源的 `main`。配套应用名没有 `-config` 后缀，`Settings.sh` 已单独处理。
+- 补入 [VizzleTF/luci-theme-footstrap](https://github.com/VizzleTF/luci-theme-footstrap)：安装为可选主题，不代替 Vantage。它未提供中文翻译包，不添加不存在的配置项。
+- Vantage 的进度条字体修复 [PR #52](https://github.com/anothaDev/luci-theme-vantage/pull/52) 已合并；不再复制 CI 模板中针对旧代码的替换命令。
+- 暂不恢复 [sirpdboy/netspeedtest](https://github.com/sirpdboy/netspeedtest/tree/0c936e9dd513b2915229871b088b85ca817f5083)：其 `5.2.1` Makefile 仍依赖 `python3-pkg-resources` 和 `python3-email`。当前 ImmortalWrt packages `48f6090` 已无前者的包定义，后者内容已合并进 `python3-urllib`；CI 模板没有配套修复，直接恢复会产生缺失依赖。没有重新引入本地依赖修补或旧 `speedtestcpp`。
+
+正式及测试工作流、WiFi-YES 及 WiFi-NO 均默认选择 Vantage，沿用主题自带的初始化脚本。首次注册 Vantage 且未设置包升级标志 `PKG_UPGRADE=1` 时，该脚本会切换默认主题；因此，从没有 Vantage 注册项的旧固件保留配置升级，也可能将原主题切换为 Vantage。已有注册项或常规包升级时，此脚本不主动切换主题。升级或恢复备份后，请在 LuCI **系统 → 系统 → 语言和界面**确认实际选择。本项目未另外添加主题保留补丁，源码及配置检查不等于新主题已完成实机验证。
 
 在模板的 HomeProxy、GecoosAC、Mini DiskManager、NATMapT、Samba、UPnP、WOLUltra 等基础上，增加：
 
@@ -109,27 +120,20 @@ DAE/DAED 使用参考项目的 `kenzok8/openwrt-daede@0b0e5d6`，包括后端切
 
 ## 构建和缓存
 
-### MiniUPnP 重连修复
+### 上游成套 MiniUPnP 与 LuCI
 
-MiniUPnP 官方 `2.3.11` 在 WAN 短暂断线后重新获得私有/CGNAT 地址时，可能一直拒绝端口映射，直到重启服务。官方修复为 [2dcf639](https://github.com/miniupnp/miniupnp/commit/2dcf63959950dbb2c3f97b7bd63773d499749134)。项目不维护额外的本地 C 源码补丁，由 `Scripts/Miniupnpd.sh` 自动选择：
+2026-11-02 核对后，按用户选择改用 [VIKINGYFY/packages](https://github.com/VIKINGYFY/packages/tree/1d676e3edcb5838fcffcbfe53aa459908810f999) 的成套包，随该源的 `main` 更新。正式及测试工作流、两种 WiFi 固件共用此来源，保留 `miniupnpd-nftables` 后端。
 
-- feed 版本不高于 `2.3.11`：使用官方修复源码，打包为 `2.3.11-r2`；同时取用 ImmortalWrt packages 的固定提交 `72c7391` 中完整的 miniupnpd 包目录。源码和打包归档分别校验 SHA256，避免未来 feed 的新补丁、启动脚本与旧核心混搭。保留该快照原有的服务、防火墙集成和兼容性补丁，不修改 LuCI 或默认权限。
-- feed 升级至更高正式版本：通过 GitHub API 确认对应 MiniUPnP 官方 release tag 的历史包含上述修复，然后原样使用 feed 包，不再固定旧核心，也不替换新版的启动脚本或补丁。正常发布无需手工改版本和哈希。
-- 下载、校验或官方修复确认失败会明确报错，不静默降级。版本号格式、源码来源变化或上游以不同提交重新实现修复时需要人工复核；不能保证未来版本不存在新缺陷。
+- 核心核对版本为 `20261101-r1`，采用 MiniUPnP 官方源码 [d7b1860](https://github.com/miniupnp/miniupnp/commit/d7b1860faa8e99386009570d0216bdc3b5e121a7)。已确认其历史包含私有/CGNAT 地址重连修复 [2dcf639](https://github.com/miniupnp/miniupnp/commit/2dcf63959950dbb2c3f97b7bd63773d499749134)，真实下载归档 SHA256 与上游 Makefile 一致。
+- LuCI 核对版本为 `20261027-r7`，与新版核心成套使用，不能单独混搭旧 `2.3.11`。映射列表通过 `nft --json` 读取规则，避开旧文本正则不识别 `counter packets ... bytes ...` 的问题，并适配新版租约字段。
+- `Packages.sh` 按上游模板移除两个旧 feed 包目录，再统一使用 `package/packages` 中的包。删除本仓库旧核心选源脚本、固定版本元数据和 LuCI 单行回移补丁，不再叠加第二套修复逻辑。
+- `Scripts/UpnpSource.sh` 仅生成来源记录，不修改上游包。Release 继续附带 `MINIUPNPD-SOURCE.txt`、`LUCI-UPNP-SOURCE.txt`，记录同一打包仓库提交、实际候选版本、核心源码提交/归档哈希以及 Makefile/RPC 文件哈希。最终是否装入固件仍须核对该次 `.manifest`。
 
-固定源码元数据在 `Config/miniupnpd-source.mk`，打包快照及其哈希在 `Scripts/Miniupnpd.sh`，两种 WiFi 固件共用。Release 的 `MINIUPNPD-SOURCE.txt` 记录实际选择的来源、版本和校验依据。新版核对使用 CI 已有的 `GITHUB_TOKEN`，不需要另加密钥。
+这是 VIKINGYFY 的已修复打包方案，不代表 ImmortalWrt 官方 feed 已发布同样修复。截至核对时，官方 feed 仍为 `2.3.11-r1`，LuCI 仍使用旧匹配式，[PR #9148](https://github.com/openwrt/luci/pull/9148) 已关闭但未合并。
 
-此修复恢复的是本机端口映射，不会替运营商配置 CGNAT，也不保证公网入站可达。未安装新固件的设备仍是旧核心，单独重启 `miniupnpd` 只能暂时恢复。无需清理工具链缓存；不会在运行中的路由器上自动重启代理或网络服务。
+上游包保留 `/etc/config/upnpd`，自带 `force_forwarding` 到 `ext_allow_private_ipv4` 及旧租约格式迁移。全新配置默认 `enabled=0`，不擅自开启映射服务；保留配置升级时以既有设置和上游迁移结果为准。不要把源码审查当成所有历史备份均已实测兼容。
 
-### LuCI 端口映射显示
-
-新版 MiniUPnP 的 nftables DNAT 规则包含 `counter packets ... bytes ...`，旧版 `luci-app-upnp` 的状态读取器无法匹配，可能出现实际映射有效、LuCI 却显示空列表的问题。
-
-项目回移 [OpenWrt LuCI PR #9148](https://github.com/openwrt/luci/pull/9148) 的原始单行修复，提交为 `9f52246f6fc40420be8ee962502ac967f0f3ec26`。截至 2026-10-30 该 PR 已关闭但未合并，OpenWrt/ImmortalWrt 的读取器仍存在旧匹配式，不能视为官方已发布修复。未采用包含 UCI/访问控制迁移的整体重构，也未替换 LuCI 包、MiniUPnP 核心或其服务配置。
-
-`Scripts/LuciUpnp.sh` 在两个 WiFi 模式共用的构建步骤中处理 feed：旧读取器应用原始上游补丁；已包含该修复的 feed 保持原样，不重复应用。若将来读取器整体重构、补丁和反向校验均不匹配，构建明确提示复核，不覆盖新版实现或静默宣称兼容。上游正式合入后可移除这项回移；无需因普通版本号变化手工更新。
-
-Release 附带 `LUCI-UPNP-SOURCE.txt`，记录本次使用原生 feed 还是上游回移，以及修复提交和最终 RPC 文件 SHA256。验证应创建短租期临时映射、同时检查 LuCI 与真实规则，最后通过 UPnP 协议删除；现有 LuCI 的“删除”按钮会重启 MiniUPnP，不适合无中断诊断。本构建脚本不操作运行中的任何服务。
+新 LuCI 的“删除映射”仍会停止再启动 MiniUPnP，不是无中断操作。需要无中断诊断时用 UPnP 协议删除临时测试映射。此改动只影响后续固件构建，不操作现有路由器、代理、WAN 或其他服务，也不保证运营商 CGNAT 的公网入站可达。
 
 ### 触发编译
 
@@ -175,11 +179,7 @@ export WRT_PLUGIN_REFERENCE=/path/to/AX6600-CI
 export GITHUB_WORKSPACE="$PWD"
 bash Scripts/Honk.sh /tmp/cr1000a-honk-check
 export WRT_HONK_CHECK=/tmp/cr1000a-honk-check
-export MINIUPNPD_PACKAGE_CHECK=/path/to/immortalwrt-packages/net/miniupnpd
-# Download the official commit archive referenced by Config/miniupnpd-source.mk.
-export MINIUPNPD_ARCHIVE_CHECK=/path/to/miniupnpd-2dcf639.tar.gz
-# Immutable packaging archive from the commit in Scripts/Miniupnpd.sh.
-export MINIUPNPD_PACKAGING_ARCHIVE=/path/to/packages-72c7391.tar.gz
+export WRT_VIKING_PACKAGES=/path/to/VIKINGYFY-packages
 python3 -m pip install -r Tests/requirements.txt
 python3 -m unittest discover -s Tests -v
 bash Scripts/Daede.sh /tmp/cr1000a-daede-check
@@ -191,4 +191,4 @@ bash Tests/test_mihomo_conflicts.sh
 bash Tests/test_geodata_updater.sh
 ```
 
-检查覆盖双模式并行矩阵及 owrt 分支、WiFi-NO 上游禁用项和 Q6 调整、缓存隔离、模板/插件差集、DSA/恢复/NSS/QoS 配置和 manifest 缺包报错、原生 LAN/WAN/升级/NSS/QoS 文件不被改写、第三射频板级数据、无线默认值转换、Honk/Doona 发布输入，以及 DAE/DAED 迁移和切换。服务测试只替代路由器专有 I/O，不代表实机运行；完整固件仍由 GitHub Actions 验证。
+检查覆盖双模式并行矩阵及 owrt 分支、WiFi-NO 上游禁用项和 Q6 调整、缓存隔离、模板/插件差集、DSA/恢复/NSS/QoS 配置和 manifest 缺包报错、原生 LAN/WAN/升级/NSS/QoS 文件不被改写、第三射频板级数据、无线默认值转换、Vantage 实际包名、UPnP 唯一来源与追溯记录、Honk/Doona 发布输入，以及 DAE/DAED 迁移和切换。服务测试只替代路由器专有 I/O，不代表实机运行；完整固件仍由 GitHub Actions 验证。
