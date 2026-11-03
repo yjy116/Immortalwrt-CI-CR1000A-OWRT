@@ -200,6 +200,7 @@ jobs:
 
           $GITHUB_WORKSPACE/Scripts/Packages.sh
           $GITHUB_WORKSPACE/Scripts/Handles.sh
+          bash "$GITHUB_WORKSPACE/Scripts/Vantage.sh" ./package/luci-theme-vantage
           bash "$GITHUB_WORKSPACE/Scripts/UpnpSource.sh" ./package/packages ./tmp/upnp-source
 
       - name: Custom Settings

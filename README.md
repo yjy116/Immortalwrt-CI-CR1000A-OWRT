@@ -120,6 +120,17 @@ DAE/DAED 使用参考项目的 `kenzok8/openwrt-daede@0b0e5d6`，包括后端切
 
 ## 构建和缓存
 
+### Vantage 仪表盘刷新修复
+
+2026-11-03 实机确认，Vantage `1.0.12` 的有线设备采集会触发 RTL9303 全硬件 FDB 扫描，占用 RTNL 并拖慢其他网络状态查询；核对的上游 `1.0.13`（`2bfecc1`）仍使用同一查询。
+
+- `Scripts/Vantage.sh` 仅修正 `luci-app-vantage` 的采集入口，并安装 `Patches/vantage/vantage_bridge.uc`。读取内核维护的 `/sys/class/net/*/brforward` 软件桥表，不扫描交换机硬件表，不改变 PPE/NSS、LAN/WAN、代理、主题或插件选择。
+- 保留上游每端口 128、总计 512 个返回项及 4096 条 FDB 的既有保护；排除本机、多播和已移除端口。读表失败或记录不完整明确报错，不伪装成空列表。ACL 不变。
+- 软件桥接口不提供 VLAN ID，`vlan` 明确为 `null`；零活动时间无法区分静态条目和刚学习条目，因此 `seen` 返回 `null`。当前实测为未开启 VLAN 过滤的 CR1000A 桥接；此接口不能用于精确展示 VLAN-aware bridge 的分 VLAN 客户端，不改动实际 VLAN 配置。
+- 正式/测试和 WiFi-YES/NO 共用该步骤。仍跟随 Vantage 上游版本，不锁旧包；上游修改对应采集代码时严格应用失败，提示重新评估，不静默跳过。上游解决硬件扫描问题后应核对并移除此修正。
+
+实机仅备份并更新两个采集文件，再重载 `rpcd`，没有重启路由器、代理或网络服务。更新后 `luci.vantage wired` 三次均约 0.04 秒，页面恢复约 5 秒刷新，并保留 3 台有线设备。这是当前设备的运行验证，不代表已完成新固件编译。
+
 ### 上游成套 MiniUPnP 与 LuCI
 
 2026-11-02 核对后，按用户选择改用 [VIKINGYFY/packages](https://github.com/VIKINGYFY/packages/tree/1d676e3edcb5838fcffcbfe53aa459908810f999) 的成套包，随该源的 `main` 更新。正式及测试工作流、两种 WiFi 固件共用此来源，保留 `miniupnpd-nftables` 后端。
@@ -180,6 +191,7 @@ export GITHUB_WORKSPACE="$PWD"
 bash Scripts/Honk.sh /tmp/cr1000a-honk-check
 export WRT_HONK_CHECK=/tmp/cr1000a-honk-check
 export WRT_VIKING_PACKAGES=/path/to/VIKINGYFY-packages
+export WRT_VANTAGE_CHECK=/path/to/luci-theme-vantage
 python3 -m pip install -r Tests/requirements.txt
 python3 -m unittest discover -s Tests -v
 bash Scripts/Daede.sh /tmp/cr1000a-daede-check
@@ -190,5 +202,7 @@ node Tests/test_daede_switch.cjs /tmp/cr1000a-daede-check
 bash Tests/test_mihomo_conflicts.sh
 bash Tests/test_geodata_updater.sh
 ```
+
+Vantage 的真实 ucode 采集回归需在有 `ucode`、`fs`、`uci` 和 `ubus` 模块的环境运行。先对 Vantage 的测试副本运行 `bash Scripts/Vantage.sh /path/to/vantage-copy`，再运行 `sh Tests/test_vantage_wired.sh /path/to/vantage-copy/luci-app-vantage/root/usr/share/rpcd/ucode/luci.vantage`。测试只读取合成桥表，拦截并拒绝硬件 netlink 查询，最长 60 秒；不操作真实网络或 UCI 配置。已在实机 ucode 上分别验证 1.0.12 和 1.0.13 的采集逻辑。
 
 检查覆盖双模式并行矩阵及 owrt 分支、WiFi-NO 上游禁用项和 Q6 调整、缓存隔离、模板/插件差集、DSA/恢复/NSS/QoS 配置和 manifest 缺包报错、原生 LAN/WAN/升级/NSS/QoS 文件不被改写、第三射频板级数据、无线默认值转换、Vantage 实际包名、UPnP 唯一来源与追溯记录、Honk/Doona 发布输入，以及 DAE/DAED 迁移和切换。服务测试只替代路由器专有 I/O，不代表实机运行；完整固件仍由 GitHub Actions 验证。
