@@ -24,7 +24,11 @@ permissions: write-all
 
 #CI任务
 jobs:
+  proxy-releases:
+    uses: ./.github/workflows/PROXY-RELEASES.yml
+
   config:
+    needs: proxy-releases
     name: ${{matrix.CONFIG}}
     strategy:
       fail-fast: false
@@ -37,6 +41,7 @@ jobs:
     #调用公用编译核心WRT-CORE.yml
     uses: ./.github/workflows/WRT-CORE.yml
     with:
+      WRT_PROXY_RELEASES: ${{needs.proxy-releases.outputs.releases}}
       #编译配置
       WRT_CONFIG: ${{matrix.CONFIG}}
       #默认主题

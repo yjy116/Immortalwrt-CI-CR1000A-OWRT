@@ -1,0 +1,27 @@
+name: Resolve Proxy Releases
+
+on:
+  workflow_call:
+    outputs:
+      releases:
+        description: Exact formal DAED and Honk releases shared by both firmware variants
+        value: ${{jobs.resolve.outputs.releases}}
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      releases: ${{steps.select.outputs.releases}}
+    steps:
+      - uses: actions/checkout@main
+      - name: Select latest formal proxy releases
+        id: select
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        run: |
+          releases=$(python3 Scripts/ReleaseSource.py resolve)
+          printf 'releases=%s\n' "$releases" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$releases" | python3 -m json.tool

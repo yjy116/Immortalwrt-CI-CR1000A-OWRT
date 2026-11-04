@@ -1,15 +1,24 @@
 diff --git a/dae/Makefile b/dae/Makefile
-index d54d521..0d9fbc8 100644
+index f92c4c5..123f063 100644
 --- a/dae/Makefile
 +++ b/dae/Makefile
-@@ -35 +35 @@ GO_PKG:=github.com/daeuniverse/dae
+@@ -32,7 +32,7 @@ PATCH_DIR:=$(CURDIR)/patches_arm
+ endif
+ 
+ GO_PKG:=github.com/daeuniverse/dae
 -GO_PKG_EXCLUDES:=control/kern/tests
 +GO_PKG_BUILD_PKG:=$(GO_PKG)
+ GO_PKG_LDFLAGS:= \
+ 	-s -w -buildid= \
+ 	-linkmode external -extldflags '-static -Wl,-s'
 diff --git a/dae/files/dae.init b/dae/files/dae.init
 index 394897e..1557dff 100644
 --- a/dae/files/dae.init
 +++ b/dae/files/dae.init
-@@ -19,0 +20,9 @@ start_service() {
+@@ -17,6 +17,15 @@ start_service() {
+ 	config_get_bool enabled "config" "enabled" "0"
+ 	[ "$enabled" -eq "1" ] || return 1
+ 
 +	# Both backends share eBPF attachments; selection also applies at boot/CLI.
 +	local active_backend
 +	active_backend="$(uci -q get daede.config.active_backend)"
@@ -19,17 +28,29 @@ index 394897e..1557dff 100644
 +		return 1
 +	fi
 +
+ 	local config_file
+ 	config_get config_file "config" "config_file" "/etc/dae/config.dae"
+ 
 diff --git a/daed/Makefile b/daed/Makefile
-index 6046442..b0c6ea9 100644
+index 9122e11..3a6ab0f 100644
 --- a/daed/Makefile
 +++ b/daed/Makefile
-@@ -34,0 +35 @@ GO_PKG:=github.com/daeuniverse/dae-wing
+@@ -32,6 +32,7 @@ PATCH_DIR:=$(CURDIR)/patches_arm
+ endif
+ 
+ GO_PKG:=github.com/daeuniverse/dae-wing
 +GO_PKG_BUILD_PKG:=$(GO_PKG)
+ 
+ GO_PKG_LDFLAGS:= \
+ 	-s -w -buildid= \
 diff --git a/daed/files/daed.init b/daed/files/daed.init
 index 9277774..8e16fc2 100644
 --- a/daed/files/daed.init
 +++ b/daed/files/daed.init
-@@ -29,0 +30,9 @@ start_service() {
+@@ -27,6 +27,15 @@ start_service() {
+ 		return 1
+ 	fi
+ 
 +	# Both backends share eBPF attachments; selection also applies at boot/CLI.
 +	local active_backend
 +	active_backend="$(uci -q get daede.config.active_backend)"
@@ -39,17 +60,29 @@ index 9277774..8e16fc2 100644
 +		return 1
 +	fi
 +
+ 	local listen_addr log_maxbackups log_maxsize
+ 	config_get listen_addr "config" "listen_addr" "0.0.0.0:2023"
+ 	config_get log_maxbackups "config" "log_maxbackups" "1"
 diff --git a/luci-app-daede/Makefile b/luci-app-daede/Makefile
-index f99f430..649a422 100644
+index 6514a54..ddce8bb 100644
 --- a/luci-app-daede/Makefile
 +++ b/luci-app-daede/Makefile
-@@ -64,0 +65 @@ define Package/$(PKG_NAME)/install
+@@ -62,6 +62,7 @@ define Package/$(PKG_NAME)/install
+ 
+ 	$(INSTALL_DIR) $(1)/etc/uci-defaults
+ 	$(INSTALL_BIN) ./root/etc/uci-defaults/90-luci-app-daede-init $(1)/etc/uci-defaults/90-luci-app-daede-init
 +	$(INSTALL_BIN) ./root/etc/uci-defaults/89-daede-migrate $(1)/etc/uci-defaults/89-daede-migrate
+ 
+ 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
+ 	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-daede.json $(1)/usr/share/luci/menu.d/luci-app-daede.json
 diff --git a/luci-app-daede/htdocs/luci-static/resources/view/daede/backend.js b/luci-app-daede/htdocs/luci-static/resources/view/daede/backend.js
 index f141f74..4715fb0 100644
 --- a/luci-app-daede/htdocs/luci-static/resources/view/daede/backend.js
 +++ b/luci-app-daede/htdocs/luci-static/resources/view/daede/backend.js
-@@ -42,2 +42,5 @@ function execOk(cmd, args) {
+@@ -39,8 +39,11 @@ const BACKENDS = {
+ };
+ 
+ function execOk(cmd, args) {
 -	return L.resolveDefault(fs.exec(cmd, args || []), { code: 1 }).then(function(res) {
 -		return res && res.code === 0;
 +	return fs.exec(cmd, args || []).then(function(res) {
@@ -57,7 +90,13 @@ index f141f74..4715fb0 100644
 +		if (!res || (res.code !== 0 && res.code !== 1))
 +			throw new Error(res && (res.stderr || res.stdout) || 'Process status failed');
 +		return res.code === 0;
-@@ -94,0 +98,14 @@ function loadActiveBackend() {
+ 	});
+ }
+ 
+@@ -92,16 +95,42 @@ function loadActiveBackend() {
+ 	});
+ }
+ 
 +function execChecked(cmd, args) {
 +	return fs.exec(cmd, args).then(function(res) {
 +		if (!res || res.code !== 0)
@@ -72,7 +111,10 @@ index f141f74..4715fb0 100644
 +		.then(function() { return execChecked(BACKENDS[name].initd, ['disable']); });
 +}
 +
-@@ -99 +116,13 @@ function setActiveBackend(name) {
+ function setActiveBackend(name) {
+ 	if (!BACKENDS[name])
+ 		return Promise.reject(new Error('invalid backend: ' + name));
+ 
 -	return exists('/etc/config/daede').then(function(ok) {
 +	return detectRunning().then(function(running) {
 +		if (running.dae || running.daed)
@@ -87,17 +129,27 @@ index f141f74..4715fb0 100644
 +				return chain.then(function() { return disableBackend(key); });
 +			}, Promise.resolve());
 +	}).then(function() { return exists('/etc/config/daede'); }).then(function(ok) {
-@@ -102,3 +131,3 @@ function setActiveBackend(name) {
+ 		if (!ok)
+ 			return fs.write('/etc/config/daede', '');
 -	}).then(function() { return fs.exec('/sbin/uci', ['set', 'daede.config=daede']); })
 -		.then(function() { return fs.exec('/sbin/uci', ['set', 'daede.config.active_backend=' + name]); })
 -		.then(function() { return fs.exec('/sbin/uci', ['commit', 'daede']); })
 +	}).then(function() { return execChecked('/sbin/uci', ['set', 'daede.config=daede']); })
 +		.then(function() { return execChecked('/sbin/uci', ['set', 'daede.config.active_backend=' + name]); })
 +		.then(function() { return execChecked('/sbin/uci', ['commit', 'daede']); })
+ 		.then(function() { uci.set('daede', 'config', 'active_backend', name); });
+ }
+ 
 diff --git a/luci-app-daede/htdocs/luci-static/resources/view/daede/widgets.js b/luci-app-daede/htdocs/luci-static/resources/view/daede/widgets.js
 index 843fcba..1ef130d 100644
 --- a/luci-app-daede/htdocs/luci-static/resources/view/daede/widgets.js
 +++ b/luci-app-daede/htdocs/luci-static/resources/view/daede/widgets.js
-@@ -144 +144 @@ function renderBackendSwitcher(ctx, onSwitched, initialHint) {
+@@ -141,7 +141,7 @@ function renderBackendSwitcher(ctx, onSwitched, initialHint) {
+ 				.catch(function(e) {
+ 					busy = false;
+ 					Array.prototype.forEach.call(segment.querySelectorAll('button'), function(b) { b.disabled = false; });
 -					showHint(_('Switch failed.'));
 +					showHint(_('Switch failed.') + ' ' + (e.message || e));
+ 				});
+ 		});
+ 		segment.appendChild(btn);

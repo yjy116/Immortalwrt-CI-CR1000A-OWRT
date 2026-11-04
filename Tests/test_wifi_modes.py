@@ -36,7 +36,7 @@ class WifiProfileTests(unittest.TestCase):
                 self.assertEqual(["owrt"], strategy["matrix"]["BRANCH"])
                 self.assertFalse(strategy["fail-fast"])
                 self.assertGreaterEqual(strategy.get("max-parallel", len(PROFILES)), len(PROFILES))
-                self.assertNotIn("needs", job)
+                self.assertEqual("proxy-releases", job["needs"])
                 self.assertEqual("${{matrix.CONFIG}}", job["with"]["WRT_CONFIG"])
                 self.assertEqual("US", job["with"]["WRT_COUNTRY"])
                 self.assertEqual("./.github/workflows/WRT-CORE.yml", job["uses"])

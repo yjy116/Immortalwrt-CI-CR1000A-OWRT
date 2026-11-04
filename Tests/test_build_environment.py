@@ -32,7 +32,7 @@ class BuildEnvironmentTests(unittest.TestCase):
     def test_direct_install_includes_upstream_dependencies_and_existing_fuse(self):
         expected = apt_packages(initialization(TEMPLATE)["run"])
         self.assertTrue(expected, "Upstream APT package list was not found")
-        self.assertEqual(expected | {"libfuse-dev"}, apt_packages(initialization(REPO)["run"]))
+        self.assertEqual(expected | {"libfuse-dev", "nodejs"}, apt_packages(initialization(REPO)["run"]))
 
     def test_remote_os_allowlist_and_full_upgrade_are_not_used(self):
         step = initialization(REPO)

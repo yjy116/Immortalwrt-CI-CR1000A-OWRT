@@ -97,20 +97,22 @@ HomeProxy/sing-box 按模板从 `VIKINGYFY/packages` 配套获取，不再保留
 
 保留 NATMapT。其核心 [NATMap](https://github.com/heiher/natmap) 面向兼容的 Full-cone NAT 映射，并非 UPnP 的重复组件；没有独立公网 IPv4 不代表它无用，也不代表任意 CGNAT 都能穿透。只有需要让外部设备通过公网端口访问内网服务时才需配置；尚未对用户当前上级 NAT 做可达性测试，不能承诺成功。
 
-DAE/DAED 使用参考项目的 `kenzok8/openwrt-daede@0b0e5d6`，包括后端切换互斥、旧订阅任务迁移和错误上报修复。使用内核 BTF，不额外携带大型 `vmlinux-btf`；准确源码信息随 Release 的 `DAEDE-SOURCE.txt` 发布。迁移保留旧数据库/配置和订阅计划；自动更新凭据需在新界面中核对。
+DAE/DAED 自动跟随 [kenzok8/openwrt-daede 的最新正式 Release](https://github.com/kenzok8/openwrt-daede/releases)，不再固定旧打包提交，也不直接追踪开发分支。保留后端切换互斥、旧订阅任务迁移和错误上报修复；兼容补丁使用 `--fuzz=0`，应用失败就中止构建。使用内核 BTF，不额外携带大型 `vmlinux-btf`；准确源码信息随 Release 的 `DAEDE-SOURCE.txt` 发布。迁移保留旧数据库/配置和订阅计划；自动更新凭据需在新界面中核对。
+
+正式及测试工作流均先运行 `PROXY-RELEASES.yml`，一次解析两套插件的正式发布标签及其实际 Git 提交，再把同一份结果传给 WiFi-YES 和 WiFi-NO。支持附注标签；不使用 Release 的分支名代替提交，不接收草稿、预发布或 `source-*` 资产发布。查询、检出或校验失败会明确终止，不回退旧版或开发分支。这里自动更新的是插件，**不会自动同步 `yjy116/immortalwrt:owrt` 源码 fork**。
 
 ### Honk + Doona（实验性）
 
-新增 [kenzok8/openwrt-honk](https://github.com/kenzok8/openwrt-honk/tree/b733aadc69b0d3c618104241972f483adda97aed) 的 `honk` 和 `luci-app-honk`，Doona 页面及中文翻译随 LuCI 包安装，没有单独的 `doona` 配置项。正式与测试工作流的两种 WiFi 模式均包含它们。
+使用 [kenzok8/openwrt-honk 的最新正式 Release](https://github.com/kenzok8/openwrt-honk/releases) 中配套的 `honk` 和 `luci-app-honk`，Doona 页面及中文翻译随 LuCI 包安装，没有单独的 `doona` 配置项。正式与测试工作流的两种 WiFi 模式均包含它们。
 
-- 固定打包提交 `b733aad`、Honk native-api 核心 `Glassyiris/honk@0e61ed3`（alpha）和 `Zakkaus/doona@34657ab5`（beta.20）。它不是直接替换为 `daeuniverse/honk/main`；Doona 需要配套 native API。
-- `Scripts/Honk.sh` 获取固定 `source-39098804282` 发布的元数据并校验 SHA256；构建系统再校验核心和 UI 归档。缺文件或哈希不匹配直接失败，不使用浮动 staging/跳过校验。
-- 使用已编译的静态 AArch64 核心及 Doona 静态资源，由本仓库的 owrt 构建系统重新打包，不直接安装其他 SDK 的 IPK，也不增加整套 Rust/Zig/Node 编译链。
-- 复用内核 BTF 和已有 GeoData，补齐 Function/Dynamic Ftrace 支持，不携带 `vmlinux-btf`。已核对核心裸文件约 25.83 MiB、Doona 解包约 3.28 MiB；这不是最终固件的净增大小，最终压缩体积和分区校验以本次构建为准。
-- **默认关闭、不自启、未初始化**。刷机后在 LuCI 的 Honk 页面显式初始化、设置登录凭据后再启用；Doona 由 Honk 提供，初始化后监听 LAN 地址的 9527 端口，不另起服务。
+- 保留正式发布自带的核心、Doona 和服务脚本配套关系，不单独更新核心或 UI。2026-11-04 核对的正式发布为 `v2026.11.03-r41604962306`，使用 `daeuniverse/honk@77176ff8` 和 Doona `46e153cf`（0.1.0-rc.5）；这是当次检查结果，不是固定版本。
+- `Scripts/Honk.sh` 执行发布源码自带的 `scripts/check.sh`，检查脚本、RPC/ACL、组件对应关系及归档哈希；构建系统下载时再验证核心和 UI 的 SHA256。删除旧的 staging 元数据注入逻辑，直接使用该正式发布中的不可变资产标签和哈希。缺文件、校验失败或哈希为 `SKIP` 都不会被忽略。
+- 使用已编译的静态 AArch64 核心及 Doona 静态资源，由本仓库的 owrt 构建系统重新打包，不直接安装其他 SDK 的 IPK。构建主机额外安装 Node.js 用于上游检查，不在固件中添加 Node.js，也不引入整套 Rust/Zig 编译链。
+- 复用内核 BTF 和已有 GeoData，补齐 Function/Dynamic Ftrace 支持，不携带 `vmlinux-btf`；最终固件压缩体积和分区校验以实际构建为准。
+- **全新配置默认关闭、未初始化**。沿用新版的启动注册逻辑：只有已初始化且启用的配置才启动 Honk，保留旧的已启用配置升级后可能自动启动。首次使用在 LuCI 页面显式初始化、设置登录凭据后再启用；Doona 由 Honk 提供，初始化后监听 LAN 地址的 9527 端口，不另起服务。
 - 保留 DAE/DAED。Honk 与它们共用 `dae0` / `daens` 等资源，不能同时接管流量；切换前先正常停止当前透明代理，不要强杀。启停保护会明确报告冲突，不能以改端口代替互斥。
 
-版本和组件来源随 Release 的 `HONK-SOURCE.txt` 发布。后续更新需同时核对 `Scripts/Honk.sh` 中的提交、资产标签、三份元数据哈希及配套服务兼容补丁，不能只改核心版本号。当前仅完成源码、资产和构建配置接入检查，BPF verifier/fentry、PPE 交互及真实 TCP/UDP/DNS 流量仍需刷机后验证。
+版本和组件来源随 Release 的 `HONK-SOURCE.txt` 发布，包括打包仓库、正式发布标签/编号/时间、实际提交、组件 pins、Makefile 与 AArch64 核心/Doona 归档哈希。后续普通正式版本无需手动改版本号；若上游改变打包接口导致检查失败，需要明确适配后重建，不能跳过校验。当前源码、资产和构建配置检查不能代替刷机验证，BPF verifier/fentry、PPE 交互及真实 TCP/UDP/DNS 流量仍需实机确认。
 
 不引入 AX6600 的 Athena LED、内存/设备配置及其他硬件补丁；不恢复 netspeedtest 源，也不启用 MosDNS、speedtestcpp 或旧 luci-app-speedtest。测速采用模板的命令行 iperf3，不保留旧的独立 luci-app-iperf3。
 
@@ -181,19 +183,22 @@ gh repo sync yjy116/immortalwrt --source VIKINGYFY/immortalwrt --branch owrt
 
 ## 本地验证
 
-需要 Bash、Python 3 和 Node.js。准备上述固定版本的 **owrt 源码**、CI 模板及 AX6600 参考仓库：
+需要 Bash、Python 3 和 Node.js。准备上述版本的 **owrt 源码**、CI 模板、AX6600 参考仓库，以及本次选定正式 Release 提交的原始 DAED/Honk 仓库副本（未经本地脚本处理）：
 
 ```sh
 export WRT_SOURCE_CHECK=/path/to/immortalwrt-owrt
 export WRT_CI_TEMPLATE=/path/to/VIKINGYFY-OpenWRT-CI
 export WRT_PLUGIN_REFERENCE=/path/to/AX6600-CI
 export GITHUB_WORKSPACE="$PWD"
+export WRT_PROXY_RELEASES="$(python3 Scripts/ReleaseSource.py resolve)"
+export WRT_DAEDE_UPSTREAM=/path/to/released-openwrt-daede
+export WRT_HONK_UPSTREAM=/path/to/released-openwrt-honk
 bash Scripts/Honk.sh /tmp/cr1000a-honk-check
 export WRT_HONK_CHECK=/tmp/cr1000a-honk-check
 export WRT_VIKING_PACKAGES=/path/to/VIKINGYFY-packages
 export WRT_VANTAGE_CHECK=/path/to/luci-theme-vantage
 python3 -m pip install -r Tests/requirements.txt
-python3 -m unittest discover -s Tests -v
+timeout 60 python3 -m unittest discover -s Tests -v
 bash Scripts/Daede.sh /tmp/cr1000a-daede-check
 bash Tests/test_daede_migration.sh
 bash Tests/test_daede_service_guard.sh /tmp/cr1000a-daede-check

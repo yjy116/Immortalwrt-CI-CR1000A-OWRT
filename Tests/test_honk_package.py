@@ -1,21 +1,19 @@
-"""Validate pinned Honk/Doona packaging prepared by Scripts/Honk.sh."""
+"""Validate native release metadata prepared by Scripts/Honk.sh."""
 
-import json
+import hashlib
 import os
 from pathlib import Path
+import re
 import unittest
 
 from test_compatibility import REPO, SOURCE
 
 
 HONK = Path(os.environ["WRT_HONK_CHECK"])
-CORE_COMMIT = "0e61ed382c6746773d11e78a9f81a8092aa33c62"
-ASSET_RELEASE = "source-39098804282"
 
 
 def assignments(path):
-    return dict(line.split(":=", 1) for line in path.read_text(encoding="utf-8").splitlines()
-                if ":=" in line and not line.startswith("#"))
+    return dict(re.findall(r"^([A-Z0-9_]+)[?:]?=(.*)$", path.read_text(encoding="utf-8"), re.M))
 
 
 class HonkPackageTests(unittest.TestCase):
@@ -36,24 +34,24 @@ class HonkPackageTests(unittest.TestCase):
         self.assertIn('Scripts/Honk.sh', (REPO / "Scripts/Packages.sh").read_text(encoding="utf-8"))
 
     def test_required_release_metadata_is_present_and_hashed(self):
-        core_stage = HONK / "honk/generated-stage.mk"
-        ui_stage = HONK / "luci-app-honk/generated-doona-stage.mk"
-        provenance = HONK / "honk/generated-provenance.json"
-        for path in (core_stage, ui_stage, provenance):
-            self.assertTrue(path.is_file(), str(path))
-        core = assignments(core_stage)
-        ui = assignments(ui_stage)
-        self.assertIn(CORE_COMMIT, core["HONK_ASSET_AARCH64"])
+        core = assignments(HONK / "honk/Makefile")
+        ui = assignments(HONK / "luci-app-honk/Makefile")
+        pins = assignments(HONK / "ci/pins.env")
+        self.assertEqual(pins["CORE_COMMIT"], core["CORE_COMMIT"])
+        self.assertEqual("https://github.com/daeuniverse/honk.git", pins["CORE_REPOSITORY"])
+        self.assertEqual(pins["DOONA_ARCHIVE"], ui["PKG_SOURCE"])
+        self.assertRegex(core["HONK_SOURCE_TAG"], r"^source-[0-9]+$")
+        self.assertEqual(core["HONK_SOURCE_TAG"], ui["HONK_SOURCE_TAG"])
         for data, hash_key in ((core, "HONK_HASH_AARCH64"), (ui, "PKG_HASH")):
             self.assertRegex(data[hash_key], r"^[0-9a-f]{64}$")
-            self.assertIn(f"/download/{ASSET_RELEASE}", data["PKG_SOURCE_URL"])
-        details = json.loads(provenance.read_text(encoding="utf-8"))
-        self.assertEqual(CORE_COMMIT, details["core"]["commit"])
-        self.assertEqual("https://github.com/Glassyiris/honk.git", details["core"]["repository"])
+        record = assignments(HONK / "ci/HONK-SOURCE.txt")
+        self.assertRegex(record["PACKAGING_TAG"], r"^v[0-9]")
+        self.assertEqual(hashlib.sha256((HONK / "honk/Makefile").read_bytes()).hexdigest(),
+                         record["HONK_MAKEFILE_SHA256"])
 
     def test_honk_is_opt_in_and_doona_is_bundled(self):
         config = (HONK / "honk/files/honk.config").read_text(encoding="utf-8")
-        for option in ("enabled", "boot_enabled", "initialized"):
+        for option in ("enabled", "initialized"):
             self.assertRegex(config, rf"option {option}\s+'0'")
         makefile = (HONK / "luci-app-honk/Makefile").read_text(encoding="utf-8")
         self.assertIn("/usr/share/doona", makefile)
