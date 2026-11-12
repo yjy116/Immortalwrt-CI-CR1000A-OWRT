@@ -41,11 +41,28 @@ class VantageIntegrationTests(unittest.TestCase):
             self.assertEqual((REPO / "Patches/vantage/vantage_bridge.uc").read_bytes(),
                              (package / MODULE).read_bytes())
             self.assertNotEqual(original[PLUGIN], (package / PLUGIN).read_bytes())
+            self.assert_software_only_collector(
+                original[PLUGIN].decode("utf-8").replace("\r\n", "\n"),
+                (package / PLUGIN).read_text(encoding="utf-8"))
             self.assertEqual(set(original) | {MODULE},
                              {p.relative_to(package) for p in package.rglob("*") if p.is_file()})
             for path, data in original.items():
                 if path != PLUGIN:
                     self.assertEqual(data, (package / path).read_bytes(), str(path))
+
+    def assert_software_only_collector(self, original, actual):
+        self.assertIn("import { read_bridge_fdb } from 'vantage_bridge';", actual)
+        self.assertIn("read_bridge_fdb(NET, FDB_LIMIT, FDB_ENTRY)", actual)
+        for obsolete in ("RTM_GETNEIGH", "AF_BRIDGE", "bridge_table", "fdb_last",
+                         "fdb_le", "FDB_DUMP_S", "FDB_PARSE"):
+            self.assertNotIn(obsolete, actual)
+        # Keep newer upstream wireless, aliases, quiet clients and thermal code.
+        first, last = "function norm_mac(v)", "function netdev(v)"
+        self.assertEqual(original[original.index(first):original.index(last)],
+                         actual[actual.index(first):actual.index(last)])
+        # The separate route lookup still uses rtnl; only the FDB dump is removed.
+        suffix = "function routes()"
+        self.assertEqual(original[original.index(suffix):], actual[actual.index(suffix):])
 
     def test_changed_upstream_query_fails_before_modifying_package(self):
         with tempfile.TemporaryDirectory() as directory:
