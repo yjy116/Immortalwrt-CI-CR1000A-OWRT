@@ -1,0 +1,36 @@
+--- a/honk/files/lifecycle.sh
++++ b/honk/files/lifecycle.sh
+@@ -181,5 +181,32 @@
++honk_lifecycle_peers_idle() {
++	for hlp_peer in honk-core dae daed; do
++		hlp_status=0
++		hlp_pids=$(pidof "$hlp_peer" 2>/dev/null) || hlp_status=$?
++		case "$hlp_status:$hlp_pids" in
++			1:) ;;
++			*) echo "honk lifecycle: refusing shared datapath cleanup: $hlp_peer probe status=$hlp_status pids=$hlp_pids" >&2
++				return 1 ;;
++		esac
++	done
++	hlp_namespaces=$(ip netns list 2>/dev/null) || {
++		echo "honk lifecycle: namespace list probe failed" >&2
++		return 1
++	}
++	if printf '%s\n' "$hlp_namespaces" | awk '{print $1}' | grep -qx daens; then
++		hlp_pids=$(ip netns pids daens 2>/dev/null) || {
++			echo "honk lifecycle: namespace process probe failed" >&2
++			return 1
++		}
++		[ -z "$hlp_pids" ] || {
++			echo "honk lifecycle: refusing cleanup of occupied daens namespace" >&2
++			return 1
++		}
++	fi
++	return 0
++}
++
+ honk_lifecycle_reclaim_resources() {
+ 	command -v ip >/dev/null 2>&1 || return 1
+-	[ -z "$(pidof honk-core 2>/dev/null)" ] || return 1
++	honk_lifecycle_peers_idle || return 1
+ 	for hlp_link in dae0 dae0peer; do
+ 		ip link show "$hlp_link" >/dev/null 2>&1 && ip link del "$hlp_link" >/dev/null 2>&1

@@ -16,6 +16,7 @@ from urllib.request import Request, urlopen
 PROVIDERS = {"daede": "kenzok8/openwrt-daede", "honk": "kenzok8/openwrt-honk"}
 API_ROOT = "https://api.github.com/"
 API_TIMEOUT_SECONDS = 30
+RELEASE_PAGE_SIZE = 100
 COMMIT_PATTERN = re.compile(r"[0-9a-f]{40}")
 RELEASE_PATTERN = re.compile(r"v[0-9][A-Za-z0-9._+-]*")
 
@@ -58,21 +59,51 @@ def resolve_commit(repository, target, fetch):
         target = fetch(f"repos/{repository}/git/tags/{sha}")["object"]
 
 
+def formal_releases(repository, fetch):
+    page = 1
+    excluded = 0
+    while True:
+        releases = fetch(f"repos/{repository}/releases?per_page={RELEASE_PAGE_SIZE}&page={page}")
+        if not isinstance(releases, list):
+            raise ValueError(f"Invalid release list for {repository}")
+        for release in releases:
+            tag = release["tag_name"]
+            eligible = (release["draft"] is False and release["prerelease"] is False
+                        and isinstance(tag, str) and RELEASE_PATTERN.fullmatch(tag))
+            if not eligible:
+                excluded += 1
+                continue
+            selected = {
+                "repository": repository, "tag": tag,
+                "release_id": release["id"], "published_at": release["published_at"],
+                "url": release["html_url"],
+            }
+            validate_release_fields(repository, selected)
+            yield selected
+        if len(releases) < RELEASE_PAGE_SIZE:
+            break
+        page += 1
+    print(f"{repository}: excluded {excluded} releases outside the formal v* channel",
+          file=sys.stderr)
+
+
+def publication_order(selected):
+    published = datetime.fromisoformat(selected["published_at"].replace("Z", "+00:00"))
+    return published, selected["release_id"]
+
+
 def resolve_release(repository, fetch):
-    release = fetch(f"repos/{repository}/releases/latest")
-    if release["draft"] is not False or release["prerelease"] is not False:
-        raise ValueError("Latest release is a draft or prerelease")
-    selected = {
-        "repository": repository, "tag": release["tag_name"],
-        "release_id": release["id"], "published_at": release["published_at"],
-        "url": release["html_url"],
-    }
-    validate_release_fields(repository, selected)
+    # GitHub's global latest marker can point at an independent experimental lane.
+    selected = max(formal_releases(repository, fetch), key=publication_order, default=None)
+    if selected is None:
+        raise ValueError(f"No published formal v* release found for {repository}")
     tag = selected["tag"]
     ref = fetch(f"repos/{repository}/git/ref/tags/{quote(tag, safe='')}")
     if ref["ref"] != f"refs/tags/{tag}":
         raise ValueError("Git tag response does not match the release")
     commit = resolve_commit(repository, ref["object"], fetch)
+    print(f"{repository}: selected {tag} published {selected['published_at']} ({commit})",
+          file=sys.stderr)
     return {**selected, "commit": commit}
 
 

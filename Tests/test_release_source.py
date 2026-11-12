@@ -48,7 +48,8 @@ class ReleaseSourceTests(unittest.TestCase):
     def resolve(self, module, *, release=None, annotated=False):
         base = f"repos/{PROVIDER}"
         responses = {
-            f"{base}/releases/latest": release or release_fixture(),
+            f"{base}/releases?per_page={module.RELEASE_PAGE_SIZE}&page=1":
+                [release or release_fixture()],
             f"{base}/git/ref/tags/{TAG}": {
                 "ref": f"refs/tags/{TAG}",
                 "object": {"type": "tag" if annotated else "commit",
@@ -87,8 +88,8 @@ class ReleaseSourceTests(unittest.TestCase):
                        {"type": "commit", "sha": "main"},
                        {"type": "tag", "sha": TAG_OBJECT}):
             def fetch(path):
-                if path.endswith("/releases/latest"):
-                    return release_fixture()
+                if "/releases?" in path:
+                    return [release_fixture()]
                 return {"ref": f"refs/tags/{TAG}", "object": target}
             with self.subTest(target=target), self.assertRaises(ValueError):
                 module.resolve_release(PROVIDER, fetch)

@@ -99,7 +99,7 @@ HomeProxy/sing-box 按模板从 `VIKINGYFY/packages` 配套获取，不再保留
 
 DAE/DAED 自动跟随 [kenzok8/openwrt-daede 的最新正式 Release](https://github.com/kenzok8/openwrt-daede/releases)，不再固定旧打包提交，也不直接追踪开发分支。保留后端切换互斥、旧订阅任务迁移和错误上报修复；兼容补丁使用 `--fuzz=0`，应用失败就中止构建。使用内核 BTF，不额外携带大型 `vmlinux-btf`；准确源码信息随 Release 的 `DAEDE-SOURCE.txt` 发布。迁移保留旧数据库/配置和订阅计划；自动更新凭据需在新界面中核对。
 
-正式及测试工作流均先运行 `PROXY-RELEASES.yml`，一次解析两套插件的正式发布标签及其实际 Git 提交，再把同一份结果传给 WiFi-YES 和 WiFi-NO。支持附注标签；不使用 Release 的分支名代替提交，不接收草稿、预发布或 `source-*` 资产发布。查询、检出或校验失败会明确终止，不回退旧版或开发分支。这里自动更新的是插件，**不会自动同步 `yjy116/immortalwrt:owrt` 源码 fork**。
+正式及测试工作流均先运行 `PROXY-RELEASES.yml`，分页查询两套插件的 Release 列表，仅在非草稿、非预发布的 `v*` 正式通道中按 `published_at` 选择最新发布（时间相同时按 Release ID），再解析实际 Git 提交，把同一份结果传给 WiFi-YES 和 WiFi-NO。不依赖仓库全局的 `latest` 标记：它可能指向 Honk 独立的 `linux66-*` 实验通道。`linux66-*`、`source-*`、`candidate-*` 等不属于本项目的正式通道，即使误标为非预发布也不选择；日志记录排除数量、选定标签、发布时间和提交。支持附注标签，不使用 Release 的分支名代替提交。没有合规正式发布、查询、检出或校验失败都会明确终止，不回退旧版或开发分支。这里自动更新的是插件，**不会自动同步 `yjy116/immortalwrt:owrt` 源码 fork**。
 
 ### Honk + Doona（实验性）
 
@@ -111,6 +111,7 @@ DAE/DAED 自动跟随 [kenzok8/openwrt-daede 的最新正式 Release](https://gi
 - 复用内核 BTF 和已有 GeoData，补齐 Function/Dynamic Ftrace 支持，不携带 `vmlinux-btf`；最终固件压缩体积和分区校验以实际构建为准。
 - **全新配置默认关闭、未初始化**。沿用新版的启动注册逻辑：只有已初始化且启用的配置才启动 Honk，保留旧的已启用配置升级后可能自动启动。首次使用在 LuCI 页面显式初始化、设置登录凭据后再启用；Doona 由 Honk 提供，初始化后监听 LAN 地址的 9527 端口，不另起服务。
 - 保留 DAE/DAED。Honk 与它们共用 `dae0` / `daens` 等资源，不能同时接管流量；切换前先正常停止当前透明代理，不要强杀。启停保护会明确报告冲突，不能以改端口代替互斥。
+- `Patches/honk/010-shared-datapath-ownership.patch` 修正 2026-11-11 正式包新增的残留资源回收：清理前检查 Honk、DAE、DAED 进程及 `daens` 内的进程；资源被占用或探测失败时拒绝清理并报告原因，避免停止 Honk 时删除其他代理的接口。空闲残留仍按上游逻辑回收。补丁以 `--fuzz=0` 严格应用，失败中止；上游合入等效修复后应核对并移除此适配。`HONK-SOURCE.txt` 同时记录补丁与实际 lifecycle 脚本的 SHA256。
 
 版本和组件来源随 Release 的 `HONK-SOURCE.txt` 发布，包括打包仓库、正式发布标签/编号/时间、实际提交、组件 pins、Makefile 与 AArch64 核心/Doona 归档哈希。后续普通正式版本无需手动改版本号；若上游改变打包接口导致检查失败，需要明确适配后重建，不能跳过校验。当前源码、资产和构建配置检查不能代替刷机验证，BPF verifier/fentry、PPE 交互及真实 TCP/UDP/DNS 流量仍需实机确认。
 

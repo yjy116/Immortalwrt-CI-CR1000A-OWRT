@@ -122,7 +122,7 @@ class ProxyPackageTests(unittest.TestCase):
             for test in ("test_daede_service_guard.sh", "test_honk_coexistence.sh"):
                 command = [BASH, str(REPO / "Tests" / test), str(destination)]
                 if test == "test_honk_coexistence.sh":
-                    command.append(str(FIXTURES["honk"]))
+                    command.append(os.environ["WRT_HONK_CHECK"])
                 checked = subprocess.run(command, capture_output=True, text=True, timeout=TIMEOUT)
                 self.assertEqual(0, checked.returncode, checked.stdout + checked.stderr)
             self.assertFalse(list(destination.rglob("*.orig")))
@@ -138,12 +138,20 @@ class ProxyPackageTests(unittest.TestCase):
                                  (destination / path).read_bytes())
             self.assertFalse((destination / "honk/generated-stage.mk").exists())
             self.assertFalse((destination / "luci-app-honk/generated-doona-stage.mk").exists())
+            check = subprocess.run([BASH, str(REPO / "Tests/test_honk_reclaim.sh"),
+                                    str(destination)], capture_output=True, text=True,
+                                   timeout=TIMEOUT)
+            self.assertEqual(0, check.returncode, check.stdout + check.stderr)
             record = (destination / "ci/HONK-SOURCE.txt").read_text()
             self.assertIn(selection("honk")["commit"], record)
             for key, path in (("HONK_MAKEFILE_SHA256", "honk/Makefile"),
-                              ("LUCI_HONK_MAKEFILE_SHA256", "luci-app-honk/Makefile")):
+                              ("LUCI_HONK_MAKEFILE_SHA256", "luci-app-honk/Makefile"),
+                              ("HONK_LIFECYCLE_SHA256", "honk/files/lifecycle.sh")):
                 checksum = hashlib.sha256((destination / path).read_bytes()).hexdigest()
                 self.assertIn(f"{key}={checksum}", record)
+            patch_file = REPO / "Patches/honk/010-shared-datapath-ownership.patch"
+            patch_hash = hashlib.sha256(patch_file.read_bytes()).hexdigest()
+            self.assertIn(f"HONK_COEXISTENCE_PATCH_SHA256={patch_hash}", record)
 
 
 if __name__ == "__main__":
