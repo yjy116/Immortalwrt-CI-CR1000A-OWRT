@@ -13,6 +13,7 @@ from test_compatibility import REPO, run_bash
 SOURCE = Path(os.environ["WRT_VANTAGE_CHECK"])
 PLUGIN = Path("luci-app-vantage/root/usr/share/rpcd/ucode/luci.vantage")
 MODULE = Path("luci-app-vantage/root/usr/share/ucode/vantage_bridge.uc")
+BRIDGE_IMPORT = "import { read_bridge_fdb } from 'vantage_bridge';"
 
 
 class VantageIntegrationTests(unittest.TestCase):
@@ -51,8 +52,12 @@ class VantageIntegrationTests(unittest.TestCase):
                     self.assertEqual(data, (package / path).read_bytes(), str(path))
 
     def assert_software_only_collector(self, original, actual):
-        self.assertIn("import { read_bridge_fdb } from 'vantage_bridge';", actual)
+        self.assertEqual(actual.count(BRIDGE_IMPORT), 1)
         self.assertIn("read_bridge_fdb(NET, FDB_LIMIT, FDB_ENTRY)", actual)
+        before = [line for line in original.splitlines() if line.startswith("import ")]
+        after = [line for line in actual.splitlines()
+                 if line.startswith("import ") and line != BRIDGE_IMPORT]
+        self.assertEqual(before, after)
         for obsolete in ("RTM_GETNEIGH", "AF_BRIDGE", "bridge_table", "fdb_last",
                          "fdb_le", "FDB_DUMP_S", "FDB_PARSE"):
             self.assertNotIn(obsolete, actual)
@@ -64,13 +69,34 @@ class VantageIntegrationTests(unittest.TestCase):
         suffix = "function routes()"
         self.assertEqual(original[original.index(suffix):], actual[actual.index(suffix):])
 
-    def test_changed_upstream_query_fails_before_modifying_package(self):
+    def test_unrelated_import_order_does_not_break_collector_adaptation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             plugin = root / PLUGIN
             plugin.parent.mkdir(parents=True)
-            original = (SOURCE / PLUGIN).read_text(encoding="utf-8").replace(
-                "rtnl.request(rtnl.const.RTM_GETNEIGH", "upstream_new_collector(rtnl.const.RTM_GETNEIGH")
+            source = (SOURCE / PLUGIN).read_text(encoding="utf-8")
+            imports = [line for line in source.splitlines() if line.startswith("import ")]
+            original = source.replace("\n".join(imports), "\n".join(reversed(imports)))
+            self.assertNotEqual(source, original)
+            plugin.write_text(original, encoding="utf-8")
+            run_bash(f'bash "{REPO.as_posix()}/Scripts/Vantage.sh" "$PWD"', root, {})
+            self.assert_software_only_collector(original, plugin.read_text(encoding="utf-8"))
+
+    def test_changed_upstream_query_fails_before_modifying_package(self):
+        self.assert_upstream_drift_rejected(
+            "rtnl.request(rtnl.const.RTM_GETNEIGH", "upstream_new_collector(rtnl.const.RTM_GETNEIGH")
+
+    def test_missing_netlink_import_fails_before_modifying_package(self):
+        self.assert_upstream_drift_rejected("import * as rtnl from 'rtnl';", "")
+
+    def assert_upstream_drift_rejected(self, old, new):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plugin = root / PLUGIN
+            plugin.parent.mkdir(parents=True)
+            source = (SOURCE / PLUGIN).read_text(encoding="utf-8")
+            self.assertIn(old, source)
+            original = source.replace(old, new)
             plugin.write_text(original, encoding="utf-8")
             with self.assertRaises(subprocess.CalledProcessError):
                 run_bash(f'bash "{REPO.as_posix()}/Scripts/Vantage.sh" "$PWD"', root, {})
