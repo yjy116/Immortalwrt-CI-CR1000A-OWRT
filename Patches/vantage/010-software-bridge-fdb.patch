@@ -60,7 +60,7 @@ index 341b0b6..8e59a16 100644
 -	let left = FDB_LIMIT * FDB_ENTRY;
 -	let sig = '', ages = {}, ports = {}, multi = false, tables = [];
 -
--	for (let n in (lsdir(NET) ?? [])) {
+-	for (let n in netdevs()) {
 -		let b = netdev(n) ? readfile(NET + '/' + n + '/brforward', left) : null;
 -
 -		if (type(b) != 'string')
