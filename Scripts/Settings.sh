@@ -11,26 +11,8 @@ find ./feeds/luci/modules/luci-mod-system/ -type f -name "flash.js" -exec sed -i
 #添加编译日期标识
 find ./feeds/luci/modules/luci-mod-status/ -type f -name "10_system.js" -exec sed -i "s/(\(luciversion || ''\))/(\1) + (' \/ $WRT_MARK-$WRT_DATE')/g" {} +
 
-WIFI_UC="./package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc"
-if [ -f "$WIFI_UC" ]; then
-	if [[ ! "${WRT_COUNTRY:-}" =~ ^[A-Z]{2}$ ]]; then
-		echo "::error::WRT_COUNTRY must be the actual two-letter country code."
-		exit 1
-	fi
-	for FIELD in 'set ${s}\.country=' 'set ${si}\.encryption='; do
-		if ! grep -q "^$FIELD" "$WIFI_UC"; then
-			echo "::error::Upstream wireless default field changed: $FIELD"
-			exit 1
-		fi
-	done
-	#修改WIFI名称
-	sed -i "s/ssid='.*'/ssid='\${band_name == '6g' ? '$WRT_SSID-6G' : '$WRT_SSID'}'/g" "$WIFI_UC"
-	#修改WIFI密码
-	sed -i "s/key='.*'/key='$WRT_WORD'/g" "$WIFI_UC"
-	# Use the actual installation country; upstream still chooses bands/channels.
-	sed -i "s/country='.*'/country='$WRT_COUNTRY'/g" "$WIFI_UC"
-	# The native hostapd SAE path supplies required PMF and H2E for 6GHz.
-	sed -i "/^set \${si}\.encryption=/c\set \${si}.encryption='\${band_name == '6g' ? 'sae' : (defaults?.encryption || 'psk2+ccmp')}'" "$WIFI_UC"
+if [[ "$WRT_CONFIG" == CR1000A-WIFI-YES ]]; then
+	python3 "$GITHUB_WORKSPACE/Scripts/WirelessDefaults.py" || exit 1
 fi
 
 CFG_FILE="./package/base-files/files/bin/config_generate"

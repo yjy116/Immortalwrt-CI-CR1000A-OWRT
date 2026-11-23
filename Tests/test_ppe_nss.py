@@ -96,8 +96,13 @@ class PpeNssTests(unittest.TestCase):
             self.validate("manifest", manifest + "kmod-ath11k - 1.0-r1\n", "NO")
 
     def test_new_packages_use_native_upstream_providers(self):
-        target = (SOURCE / "target/linux/qualcommax/Makefile").read_text(encoding="utf-8")
-        self.assertIn("kmod-nss-wifi-drv", target)
+        target = SOURCE / "target/linux/qualcommax"
+        default_packages = "\n".join(
+            (target / name).read_text(encoding="utf-8")
+            for name in ("Makefile", "ipq807x/target.mk")
+        )
+        self.assertRegex(default_packages.replace("\\\n", " "),
+                         r"(?m)^DEFAULT_PACKAGES\s*\+?=.*\bkmod-nss-wifi-drv\b")
         ath = (SOURCE / "package/kernel/mac80211/ath.mk").read_text(encoding="utf-8")
         self.assertIn("config ATH11K_NSS_WIFI", ath)
         for path in ("package/qca-nss/nss-wifi-drv", "package/qca-nss/nss-firmware",

@@ -51,19 +51,21 @@ WiFi-YES 使用上游 ath11k 驱动、QCN9074 固件及 CR1000A 板级数据，�
 
 2026-10-18 核对了 [CI 模板 5a77a38](https://github.com/VIKINGYFY/OpenWRT-CI/tree/5a77a388c8fe91c894f3e97618e9f997b57c4fba) 和 `26.10.17-10.45.55` 的实际 WiFi-YES 镜像：QCN9074 固件及 CR1000A `board-2.bin` 均已打包，配置中的 `=m` 属于按设备 rootfs 的正常包选择，不能据此判定漏包。
 
-`Settings.sh` 跟随新模板直接定制 `mac80211.uc` 的默认值，不再走旧 `set-wireless.sh` 分支，**不额外使用无线补丁文件**。上游 UCI 默认写 `psk2+ccmp`，但当前 ucode 后端会在 6GHz 自动映射为 SAE，因此不能把旧 UCI 字样当成实机使用 WPA2 或无线故障的证据。本项目显式填写 6GHz 的 SAE 默认值，使配置意图更清晰；上游必需字段消失时明确报错，不静默跳过。
+WiFi-YES 通过 `Scripts/WirelessDefaults.py` 生成 CR1000A 专用的 `/etc/board.d/99-cr1000a-wireless-defaults`，使用上游 `ucidef_set_country` 和 `ucidef_set_wireless` 提供板级默认值。WiFi-NO 不安装该文件。两种固件均不改写 `mac80211.uc`，也不再依赖它内部 UCI 写入的格式；所需板级 API 缺失时构建会明确报错。
+
+2026-11-23：[上游无线配置重构](https://github.com/yjy116/immortalwrt/commit/64c5a7a423715c37310c4279f30359b481775bdd) 改用 UCI 游标写入并加入加锁，导致旧的文本替换在 `Custom Settings` 失败；新的板级配置路径保留这些上游行为，不涉及 Honk 的补丁。
 
 设备主人确认实际使用地区为 **US**，并计划不保留配置升级，首次启动默认值如下：
 
 | 项目 | 默认行为 |
 | --- | --- |
-| 国家/地区 | 所有射频设为 `US`；由两个入口 workflow 的 `WRT_COUNTRY` 传入 |
+| 国家/地区 | 所有新生成的射频默认 `US`；由两个入口 workflow 的 `WRT_COUNTRY` 传入，保留上游设备 provision 国家码优先级 |
 | 6GHz SSID | `CR1000A-6G`，沿用 workflow 配置的 WiFi 密码 |
 | 6GHz 安全 | WPA3-SAE；PMF-required 和 SAE H2E 由原生 hostapd 处理 |
 | 频段 | 上游自动检测 PHY 能力，支持 6GHz 时优先选择，不硬编码 radio2 |
 | 信道和带宽 | 上游默认信道，未给出时为 auto；上游带宽上限 80MHz，不强制 160MHz |
 | 功率模式 | 原生 hostapd 的 6GHz LPI 默认值，面向室内使用；不提高发射功率 |
-| 2.4/5GHz | SSID 与加密沿用原默认，国家码同样使用实际所在地 US |
+| 2.4/5GHz | 沿用 workflow 配置的 SSID 和密码，加密为 WPA2-PSK/CCMP |
 
 这只是无线配置生成修复，**不是第三射频实机验证通过的声明**。驱动、设备树、板级数据和 PHY 检测继续跟随 owrt。若固件/PHY 未上报 6GHz 能力，不能靠改名称或强制频段解决。设备改到其他地区使用前，应同步修改正式及测试 workflow 的 `WRT_COUNTRY`，并核实当地允许的信道。
 
